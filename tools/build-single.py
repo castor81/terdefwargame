@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Egyetlen HTML fájlba csomagolja a TERDEF wargaming platformot (offline-barát, fájlként nyitható)."""
+import base64, re, sys, os
+R = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+rd = lambda p: open(os.path.join(R, p), encoding='utf8').read()
+b64 = lambda p: base64.b64encode(open(os.path.join(R, p), 'rb').read()).decode()
+cfg = rd('js/config.js'); ver = re.search(r"version: '([\d.]+)'", cfg).group(1); date = re.search(r"date: '([\d-]+)'", cfg).group(1)
+esc = lambda t: t.replace('</script', '<\\/script')
+css = rd('css/leaflet.css') + '\n' + rd('css/app.css')
+css = css.replace('url(images/layers.png)', 'none').replace('url(images/layers-2x.png)', 'none').replace('url(images/marker-icon.png)', 'none')
+css = css.replace('url(../assets/pattern@2x.png)', 'url(data:image/png;base64,%s)' % b64('assets/pattern@2x.png')).replace('url(../assets/pattern.png)', 'url(data:image/png;base64,%s)' % b64('assets/pattern.png'))
+js = lambda p: rd('js/' + p)
+map_js = js('map.js').replace("fetch('assets/hu-counties.json').then(r => r.json())", "Promise.resolve(window.__HU)")
+views = js('views.js').replace("'assets/forgatokonyv-sablon.docx'", "'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,%s'" % b64('assets/forgatokonyv-sablon.docx')).replace('href="${TEMPLATE}" download', 'href="${TEMPLATE}" download="forgatokonyv-sablon.docx"')
+entry = js('entry.js')
+entry = re.sub(r"s\.src = 'js/grenade\.js[^']*';", "s.textContent = document.getElementById('grenade-src').textContent;", entry)
+gren = js('grenade.js').replace('assets/grenade.glb', 'data:model/gltf-binary;base64,' + b64('assets/grenade.glb'))
+html = rd('index.html')
+head, body = html.split('<body>', 1)
+head = re.sub(r'<link rel="stylesheet" href="css/[^>]*>\n?', '', head).replace('</head>', '<style>\n' + css + '\n</style>\n</head>')
+body = re.sub(r'<script src="[^>]*></script>\n?', '', body.replace('</body>', '')).replace('</html>', '')
+scripts = ''.join('<script>\n%s\n</script>\n' % esc(t) for t in [js('vendor/supabase.js'), js('vendor/chart.js'), js('vendor/qrcode.js'), js('vendor/mammoth.js'), js('vendor/leaflet.js'), cfg, js('org.js'), js('store.js'), js('ui.js'), map_js, js('jemm.js'), entry, views])
+hu = '<script>window.__HU=%s;</script>\n' % rd('assets/hu-counties.json').strip()
+gs = '<script type="text/plain" id="grenade-src">\n%s\n</script>\n' % esc(gren)
+out = head + '<body>' + body + hu + gs + scripts + '</body>\n</html>\n'
+name = 'terdefwargame_v%s_%s.html' % (ver, date)
+dst = sys.argv[1] if len(sys.argv) > 1 else os.path.join(R, 'dist', name)
+os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'w', encoding='utf8').write(out); print(dst, round(len(out) / 1e6, 1), 'MB')
