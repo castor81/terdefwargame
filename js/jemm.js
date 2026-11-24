@@ -2,7 +2,8 @@
 (function () {
   'use strict';
   const LWP = window.LWP, U = window.UI, ORG = window.ORG, S = LWP.S, CFG = window.LWP_CONFIG;
-  const { esc, $, $$, h } = U;
+  const { esc, $, $$ } = U;
+  const h = html => { const t = document.createElement('div'); t.innerHTML = html.trim(); return t.firstElementChild; };
   const norm = t => String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const uid = () => LWP.uuid().slice(0, 8);
 
@@ -112,7 +113,7 @@
     function paint() {
       trig.querySelectorAll('.msel-tag').forEach(x => x.remove());
       const ph = trig.querySelector('.msel-ph'); ph.textContent = sel.length ? '' : o.placeholder; ph.style.display = sel.length ? 'none' : '';
-      sel.forEach(v => { const t = h(`<span class="msel-tag">${esc(label(o.labelOf ? o.labelOf(v) : v))}<i data-x="${esc(v)}">×</i></span>`, 'span'); trig.insertBefore(t, trig.querySelector('.msel-ar')); });
+      sel.forEach(v => { const t = h(`<span class="msel-tag">${esc(label(o.labelOf ? o.labelOf(v) : v))}<i data-x="${esc(v)}">×</i></span>`); trig.insertBefore(t, trig.querySelector('.msel-ar')); });
       o.onChange && o.onChange(sel);
     }
     function toggle(v) { const i = sel.indexOf(v); if (i >= 0) sel.splice(i, 1); else sel.push(v); paint(); if (drop) fill(); }
@@ -129,7 +130,7 @@
       drop.querySelector('button').onclick = add; inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); add(); } e.stopPropagation(); };
       setTimeout(() => document.addEventListener('mousedown', away), 0); window.addEventListener('resize', pos, true); document.addEventListener('scroll', pos, true);
     }
-    function away(e) { if (drop && !drop.contains(e.target) && !trig.contains(e.target)) close(); }
+    function away(e) { const pth = e.composedPath ? e.composedPath() : []; if (drop && !pth.includes(drop) && !pth.includes(trig)) close(); }
     function close() { if (!drop) return; drop.remove(); drop = null; trig.classList.remove('open'); document.removeEventListener('mousedown', away); window.removeEventListener('resize', pos, true); document.removeEventListener('scroll', pos, true); }
     trig.addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) { toggle(x.dataset.x); return; } drop ? close() : open(); });
     paint(); return { get: () => sel.slice(), close, set(a) { sel.splice(0, sel.length, ...a); paint(); } };

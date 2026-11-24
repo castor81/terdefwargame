@@ -59,7 +59,7 @@
         <section class="mid mid-map"><aside class="side glass" id="sl"></aside><div class="mapwrap glass" id="mapw"></div>
           <div class="chat glass"><div class="chat-h"><b>Közös operatív kép</b><span>közlések és csoportjelentések</span></div><div id="feed"></div></div>
           <aside class="side glass" id="sr"></aside></section></div>`;
-      const feed = U.Feed($('#feed'), { channel: 'cop', actor: null, big: true, emptyText: 'Várakozás az első közlésre…' });
+      const feed = U.Feed($('#feed'), { channel: 'cop', actor: null, big: true, collapse: true, emptyText: 'Várakozás az első közlésre…' });
       U.notifStart({ relevant: m => m.channel === 'cop', mine: () => false });
       const mapCtl = window.TDWMap.create($('#mapw'), { visible: inc => inc.show_cop !== false, msgFilter: m => m.channel === 'cop', autoFlash: true });
       cleanup.push(() => mapCtl.destroy());
@@ -454,7 +454,7 @@
           return;
         }
         if (G.tab === 'dm' && !G.other) { $('#f').innerHTML = '<div class="empty">Válassz egy csoportot a bal oldali listából.</div>'; feed = null; return; }
-        feed = U.Feed($('#f'), { channel: c, actor: gid, canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
+        feed = U.Feed($('#f'), { channel: c, actor: gid, collapse: c === 'cop', canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
         U.Composer($('#c'), { placeholder: G.tab === 'cop' ? 'Közlés a COP-ra (mindenki látja)…' : G.tab === 'lead' ? 'Üzenet a gyakorlatvezetőnek…' : 'Üzenet a másik csoportnak…', incidents: () => S.incidents.filter(vis), onSend: async ({ body, file, incident }) => { await post({ channel: c, type: 'group', id: gid, html: body, file, incident }); feed.forceBottom(); beat(); } });
       }
       function sync() {

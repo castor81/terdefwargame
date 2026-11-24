@@ -45,16 +45,16 @@
     html: `<svg viewBox="0 0 24 22" width="26" height="24"><path d="M12 1.5 L23 20.5 H1 Z" fill="${sev(inc.severity).c}" stroke="#262a3d" stroke-width="1.7" stroke-linejoin="round"/><rect x="11" y="8" width="2" height="6" fill="#fff"/><rect x="11" y="15.5" width="2" height="2" fill="#fff"/></svg>`,
     iconSize: [26, 24], iconAnchor: [13, 20], popupAnchor: [0, -18], tooltipAnchor: [12, -12]
   });
-  const plainText = h => { const d = document.createElement('div'); d.innerHTML = U.sanitize(h || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
+  const plainText = h => { const d = document.createElement('div'); d.innerHTML = U.sanitize(h || '').replace(/<\/(h\d|p|li|div)>|<br\s*\/?>/gi, '$& '); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
   const unitName = id => (LWP.group(id) || ORG.get(id) || { name: id }).name;
 
   function popupHTML(inc, o) {
     const raw = S.msgs.filter(m => m.incident === inc.id && !m.deleted && (!o.msgFilter || o.msgFilter(m))), seenK = new Map(), msgs = [];
     raw.forEach(m => { const k = m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || ''); const e = seenK.get(k); if (e) { e.n++; } else { const x = { m, n: 1 }; seenK.set(k, x); msgs.push(x); } });
     const tg = inc.targets === 'all' || !inc.targets ? 'minden szervezeti elem' : (Array.isArray(inc.targets) ? (inc.targets.length > 6 ? inc.targets.length + ' szervezeti elem' : inc.targets.map(t => (ORG.get(t) || { short: t }).short).join(', ')) : '');
-    const list = msgs.length ? msgs.map(({ m, n }) => {
+    const lim = o._expand ? 99 : 3, list = msgs.length ? msgs.slice(0, lim).map(({ m, n }) => {
       const a = U.author(m), mt = U.mediaType(m);
-      const body = m.body ? (m.author_type === 'group' ? U.plainHTML(m.body) : U.sanitize(m.body)) : '';
+      const full = plainText(m.body), body = full ? esc(full.length > 170 ? full.slice(0, 168).replace(/\s+\S*$/, '') + '…' : full) : '';
       const med = mt === 'image' ? `<img class="pm" src="${esc(m.media_url)}" alt="" data-zoom>` : mt ? `<a href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'melléklet')}</a>` : '';
       return `<div class="ip-msg${m.kind === 'event' ? ' ev' : ''}" style="--c:${a.color}"><div class="ip-mh"><b>${esc(a.name)}</b><time>${U.fmtTime(m.created_at)}</time>${n > 1 && m.author_type === 'lead' ? `<span class="muted">· ${n} csatornán</span>` : ''}</div><div class="ip-mb">${body}</div>${med}</div>`;
     }).join('') : '<p class="muted">Ehhez az incidenshez még nem kapcsolódik közlés.</p>';
@@ -64,7 +64,7 @@
       <div class="ip-meta"><span>🎯 ${esc(tg)}</span>${inc.unit_id ? `<span>🛡 ${esc(unitName(inc.unit_id))}</span>` : ''}</div>
       <div class="ip-desc">${U.sanitize(inc.body || '')}</div>
       <h5>Releváns és kapcsolódó közlések (${msgs.length})</h5>
-      <div class="ip-list">${list}</div>
+      <div class="ip-list">${list}</div>${msgs.length > 3 && !o._expand ? `<button class="ip-more" data-more>+ ${msgs.length - 3} további közlés</button>` : ''}
       <div class="ip-act">${o.onReply ? '<button class="btn pri sm" data-reply>💬 Közlés ehhez az incidenshez</button>' : ''}${o.canMod ? '<button class="btn warn sm" data-rm>🗑 Eltávolítás a térképről</button>' : ''}</div>
     </div>`;
   }
@@ -96,7 +96,35 @@
 
     const markers = new Map(); let seenIds = new Set(); let first = true, destroyed = false;
     function visible(inc) { return !inc.deleted && (!o.visible || o.visible(inc)); }
-    function popupFor(inc) { return L.popup({ maxWidth: 480, minWidth: 320, maxHeight: Math.max(260, Math.min(520, host.clientHeight - 60)), autoPanPadding: [30, 30], className: 'ippop' }); }
+    let openId = null, panel = null, psig = '';
+    function closePanel() { openId = null; psig = ''; if (panel) { panel.remove(); panel = null; } }
+    function positionPanel() {
+      if (!panel || !openId) return; const mk = markers.get(openId); if (!mk) return closePanel();
+      const hr = host.getBoundingClientRect(), pt = map.latLngToContainerPoint(mk.getLatLng()), x = hr.left + pt.x, y = hr.top + pt.y;
+      const w = panel.offsetWidth, hh = panel.offsetHeight, vw = innerWidth, vh = innerHeight, gap = 20;
+      let left = x + gap; if (left + w > vw - 8) left = x - gap - w; if (left < 8) left = Math.max(8, Math.min(vw - w - 8, x - w / 2));
+      let top = y - hh / 2; top = Math.max(8, Math.min(vh - hh - 8, top));
+      panel.style.left = left + 'px'; panel.style.top = top + 'px';
+    }
+    function renderPanel() {
+      const inc = LWP.incident(openId); if (!inc) return closePanel();
+      const sig = JSON.stringify([inc.title, inc.body, o._expand, S.msgs.filter(m => m.incident === inc.id && !m.deleted).length]);
+      if (panel && sig === psig) { positionPanel(); return; } psig = sig;
+      if (!panel) { panel = document.createElement('div'); panel.className = 'ippop2'; document.body.appendChild(panel); }
+      panel.innerHTML = '<button class="ip-x" data-close aria-label="Bezár">×</button>' + popupHTML(inc, o); positionPanel();
+    }
+    function openPanel(id) { o._expand = false; openId = id; psig = ''; renderPanel(); if (panel) panel.onclick = panelClick; }
+    function panelClick(e) {
+      const inc = LWP.incident(openId); if (!inc) return;
+      if (e.target.matches('[data-zoom]')) { U.lightbox(e.target.src); return; }
+      if (e.target.closest('[data-close]')) { closePanel(); return; }
+      if (e.target.closest('[data-more]')) { o._expand = true; psig = ''; renderPanel(); return; }
+      if (e.target.closest('[data-reply]')) { closePanel(); o.onReply && o.onReply(inc.id); return; }
+      if (e.target.closest('[data-rm]')) { if (confirm('Eltávolítod az incidenst a térképről? (A kapcsolódó közlések megmaradnak.)')) { closePanel(); LWP.patchIncident(inc.id, { deleted: true }).catch(err => U.toast(err.message)); } }
+    }
+    map.on('move zoom resize', positionPanel); map.on('click', closePanel);
+    const onKey = e => { if (e.key === 'Escape') closePanel(); }; document.addEventListener('keydown', onKey);
+    addEventListener('resize', positionPanel);
 
     function drawStatic() {
       countyLayer.clearLayers(); labelLayer.clearLayers(); seatLayer.clearLayers();
@@ -139,35 +167,22 @@
         if (!mk) {
           mk = L.marker([lat, lon], { icon: triIcon(inc, fresh), riseOnHover: true, title: '' });
           mk.bindTooltip(`<b>${esc(LWP.incCode(inc))}</b> ${esc(inc.title)}`, { direction: 'top' });
-          const pop = popupFor(inc);
-          mk.bindPopup(pop);
-          mk.on('popupopen', () => {
-            const cur = LWP.incident(inc.id) || inc; pop.setContent(popupHTML(cur, o)); mk._pop = true; wirePopup(pop, cur);
-          });
-          mk.on('popupclose', () => { mk._pop = false; });
+          mk.on('click', () => openPanel(inc.id));
           mk.addTo(incLayer); markers.set(inc.id, mk);
           if (fresh && o.autoFlash) setTimeout(() => { mk.getElement() && mk.getElement().classList.remove('fresh'); }, 8000);
         } else {
           mk.setLatLng([lat, lon]); mk.setIcon(triIcon(inc, false));
-          if (mk._pop) { const pop = mk.getPopup(), cur = LWP.incident(inc.id) || inc, sig = JSON.stringify([cur.title, cur.body, S.msgs.filter(m => m.incident === inc.id && !m.deleted).length]); if (pop._sig !== sig) { pop._sig = sig; const sc = pop.getElement() && pop.getElement().querySelector('.ip-list'); const top = sc ? sc.scrollTop : 0; pop.setContent(popupHTML(cur, o)); wirePopup(pop, cur); const n = pop.getElement() && pop.getElement().querySelector('.ip-list'); if (n) n.scrollTop = top; } }
+          if (openId === inc.id) renderPanel();
         }
       });
       list.forEach(x => seenIds.add(x.id)); first = false;
-    }
-    function wirePopup(pop, inc) {
-      const root = pop.getElement(); if (!root) return;
-      root.onclick = e => {
-        if (e.target.matches('[data-zoom]')) { U.lightbox(e.target.src); return; }
-        if (e.target.closest('[data-reply]')) { map.closePopup(); o.onReply && o.onReply(inc.id); }
-        if (e.target.closest('[data-rm]')) { if (confirm('Eltávolítod az incidenst a térképről? (A kapcsolódó közlések megmaradnak.)')) LWP.patchIncident(inc.id, { deleted: true }).catch(err => U.toast(err.message)); }
-      };
     }
     function focusIncident(id) {
       const mk = markers.get(id);
       if (!mk) { U.toast('Ez az incidens nem látható ezen a térképen.'); return false; }
       const ll = mk.getLatLng(), z = Math.max(map.getZoom(), 9);
-      map.once('moveend', () => mk.openPopup());
-      if (map.getCenter().distanceTo(ll) < 500 && map.getZoom() >= 9) mk.openPopup(); else map.flyTo(ll, z, { duration: .8 });
+      map.once('moveend', () => openPanel(id));
+      if (map.getCenter().distanceTo(ll) < 500 && map.getZoom() >= 9) openPanel(id); else map.flyTo(ll, z, { duration: .8 });
       return true;
     }
     const offs = [LWP.on(refresh), U.onIncidentFocus(focusIncident)];
@@ -175,7 +190,7 @@
     loadGeo().then(() => { if (destroyed) return; drawStatic(); refresh(); if (o.initialFocus) focusIncident(o.initialFocus); });
     return {
       map, refresh, focusIncident, invalidate: () => map.invalidateSize(),
-      destroy() { destroyed = true; offs.forEach(f => f()); if (ro) ro.disconnect(); map.remove(); }
+      destroy() { destroyed = true; closePanel(); document.removeEventListener('keydown', onKey); removeEventListener('resize', positionPanel); offs.forEach(f => f()); if (ro) ro.disconnect(); map.remove(); }
     };
   }
 

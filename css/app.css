@@ -412,3 +412,21 @@ body.plain .glogin{background:transparent}
 .mapfollow{bottom:30px;left:10px}
 .gmain>#f,.mapwrap,#mn .mapwrap{isolation:isolate;overflow:hidden;position:relative}
 .gmain>#f{display:flex;flex-direction:column}.gmain>#f>.tdwmap-c{position:absolute}
+
+/* lebegő incidens-kártya (a térképen kívülre is kiléphet) */
+.ippop2{position:fixed;z-index:2000;width:min(340px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:visible;background:#f7f4e6;color:var(--ink);border:1px solid var(--edge);border-radius:12px;padding:10px 12px 11px;box-shadow:0 14px 40px rgba(38,42,61,.38);font:12px/1.4 var(--font)}
+.ippop2 .ip-x{position:absolute;top:4px;right:6px;border:0;background:none;font-size:18px;line-height:1;color:var(--ink2)}
+.ippop2 .ip-h{padding-right:18px;gap:6px}.ippop2 .ip-h b{font-size:.95rem;line-height:1.2}.ippop2 .ip-code{font-size:.64rem;padding:1px 7px}
+.ippop2 .ip-meta{font-size:.68rem;margin:2px 0 3px;gap:1px 10px}
+.ippop2 .ip-desc{max-height:none;overflow:visible;font-size:.76rem;margin:4px 0}.ippop2 .ip-desc p{margin:.2em 0}
+.ippop2 h5{margin:7px 0 3px;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2)}
+.ippop2 .ip-list{max-height:none;overflow:visible;gap:4px}.ippop2 .ip-msg{padding:4px 8px;font-size:.72rem}
+.ippop2 .ip-msg .ip-mh{font-size:.68rem;margin:0}.ippop2 .ip-mb{font-size:.72rem}
+.ip-more{border:0;background:none;color:#7a1f12;font-weight:600;font-size:.72rem;padding:3px 0}
+.ippop2 .ip-act{margin-top:7px}.ippop2 .btn.sm{font-size:.7rem;padding:3px 9px}
+
+/* rövidített hírfolyam (COP) */
+.post.col{cursor:pointer}
+.post.col .pb.short{font-weight:600}.post.col .pb.short .more{color:#7a1f12;font-weight:600;font-size:.8em;margin-left:4px}
+.post.col:not(.open) .pb.full,.post.col:not(.open) .pmedia{display:none}
+.post.col.open .pb.short{display:none}

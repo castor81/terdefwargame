@@ -174,9 +174,16 @@
       else if (mt === 'video') media = `<video class="pm" controls preload="metadata" src="${esc(m.media_url)}"></video>`;
       else if (mt === 'audio') media = `<audio class="pa" controls preload="metadata" src="${esc(m.media_url)}"></audio>`;
       else if (mt === 'file') media = `<a class="pf" href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'fájl')}</a>`;
-      el.innerHTML = `<header><span class="ava">${esc(a.short)}</span><div class="who"><b>${esc(a.name)}</b>${a.badge ? `<span class="badge">${esc(a.badge)}</span>` : ''}${m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : ''}<span class="incslot"></span><time>${fmtTime(m.created_at)}</time></div>${(o.canMod || (o.canDel && o.canDel(m))) ? `<span class="mod">${o.canMod ? '<button data-pin title="Kiemelés a COP-on">📌 Kiemel</button>' : ''}<button data-del title="Közlés törlése">🗑 Törlés</button></span>` : ''}</header>${body ? `<div class="pb">${body}</div>` : ''}${media ? `<div class="pmedia">${media}</div>` : ''}<footer class="rx"></footer>`;
+      el.innerHTML = `<header><span class="ava">${esc(a.short)}</span><div class="who"><b>${esc(a.name)}</b>${a.badge ? `<span class="badge">${esc(a.badge)}</span>` : ''}${m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : ''}<span class="incslot"></span><time>${fmtTime(m.created_at)}</time></div>${(o.canMod || (o.canDel && o.canDel(m))) ? `<span class="mod">${o.canMod ? '<button data-pin title="Kiemelés a COP-on">📌 Kiemel</button>' : ''}<button data-del title="Közlés törlése">🗑 Törlés</button></span>` : ''}</header>${o.collapse && body ? `<div class="pb short">${esc(shortOf(body))}<span class="more">… tovább</span></div>` : ''}${body ? `<div class="pb full">${body}</div>` : ''}${media ? `<div class="pmedia">${media}</div>` : ''}<footer class="rx"></footer>`;
+      if (o.collapse) { el.classList.add('col'); el.addEventListener('click', e => { if (e.target.closest('button,a,video,audio,img,input,.rx,.mod')) return; el.classList.toggle('open'); }); }
       el._sig = null;
       return el;
+    }
+    function shortOf(html) {
+      const d = document.createElement('div'); d.innerHTML = html; const h = d.querySelector('h1,h2,h3,h4');
+      if (h && h.textContent.trim()) return h.textContent.trim().replace(/\s+/g, ' ');
+      const t = (d.textContent || '').replace(/\s+/g, ' ').trim(), m = t.match(/^(.+?[.!?])(\s|$)/), f = m ? m[1] : t;
+      return f.length > 130 ? f.slice(0, 128).replace(/\s+\S*$/, '') : f;
     }
     function update(el, m, list) {
       const incc = m.incident ? ((window.LWP.incident(m.incident) || {}).seq || '?') : '';
