@@ -52,19 +52,27 @@
     const raw = S.msgs.filter(m => m.incident === inc.id && !m.deleted && (!o.msgFilter || o.msgFilter(m))), seenK = new Map(), msgs = [];
     raw.forEach(m => { const k = m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || ''); const e = seenK.get(k); if (e) { e.n++; } else { const x = { m, n: 1 }; seenK.set(k, x); msgs.push(x); } });
     const tg = inc.targets === 'all' || !inc.targets ? 'minden szervezeti elem' : (Array.isArray(inc.targets) ? (inc.targets.length > 6 ? inc.targets.length + ' szervezeti elem' : inc.targets.map(t => (ORG.get(t) || { short: t }).short).join(', ')) : '');
-    const lim = o._expand ? 99 : 3, list = msgs.length ? msgs.slice(0, lim).map(({ m, n }) => {
-      const a = U.author(m), mt = U.mediaType(m);
-      const full = plainText(m.body), body = full ? esc(full.length > 170 ? full.slice(0, 168).replace(/\s+\S*$/, '') + '…' : full) : '';
-      const med = mt === 'image' ? `<img class="pm" src="${esc(m.media_url)}" alt="" data-zoom>` : mt ? `<a href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'melléklet')}</a>` : '';
-      return `<div class="ip-msg${m.kind === 'event' ? ' ev' : ''}" style="--c:${a.color}"><div class="ip-mh"><b>${esc(a.name)}</b><time>${U.fmtTime(m.created_at)}</time>${n > 1 && m.author_type === 'lead' ? `<span class="muted">· ${n} csatornán</span>` : ''}</div><div class="ip-mb">${body}</div>${med}</div>`;
+    /* válaszok: a reply_to alapján az eredeti közlés (vagy bármely másolata) alá kerülnek */
+    const idsOf = new Map(); raw.forEach(m => { const k = m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || ''); (idsOf.get(k) || idsOf.set(k, new Set()).get(k)).add(m.id); });
+    const replyIds = new Set(), all = S.msgs.filter(m => !m.deleted && (!o.msgFilter || o.msgFilter(m) || m.incident === inc.id));
+    const repsOf = k => { const ids = idsOf.get(k) || new Set(), seenR = new Set(); return all.filter(r => r.reply_to && ids.has(r.reply_to)).filter(r => { const kk = r.author_type + '|' + r.author_id + '|' + (r.body || ''); if (seenR.has(kk)) return false; seenR.add(kk); return true; }); };
+    const medOf = m => { const mt = U.mediaType(m); return mt === 'image' ? `<img class="pm" src="${esc(m.media_url)}" alt="" data-zoom>` : mt ? `<a href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'melléklet')}</a>` : ''; };
+    const cut = (t, n) => t.length > n ? t.slice(0, n - 2).replace(/\s+\S*$/, '') + '…' : t;
+    const keyOf = m => m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || '');
+    const reps = new Map(msgs.map(x => [x.m.id, repsOf(keyOf(x.m))])); reps.forEach(rs => rs.forEach(r => replyIds.add(r.id)));
+    const shown = msgs.filter(x => !replyIds.has(x.m.id)), nrep = [...reps.values()].reduce((n, r) => n + r.length, 0);
+    const list = shown.length ? shown.map(({ m, n }) => {
+      const a = U.author(m), full = plainText(m.body), body = full ? esc(cut(full, 170)) : '', rs = reps.get(m.id) || [];
+      const rh = rs.length ? `<div class="ip-reps"><div class="ip-rt">↩ ${rs.length} válasz</div>${rs.map(r => { const ra = U.author(r), rf = plainText(r.body); return `<div class="ip-rep" style="--c:${ra.color}"><div class="ip-mh"><b>${esc(ra.name)}</b><time>${U.fmtTime(r.created_at)}</time></div><div class="ip-mb">${esc(cut(rf, 220))}</div>${medOf(r)}</div>`; }).join('')}</div>` : '';
+      return `<div class="ip-msg${m.kind === 'event' ? ' ev' : ''}" style="--c:${a.color}"><div class="ip-mh"><b>${esc(a.name)}</b><time>${U.fmtTime(m.created_at)}</time>${n > 1 && m.author_type === 'lead' ? `<span class="muted">· ${n} csatornán</span>` : ''}</div><div class="ip-mb">${body}</div>${medOf(m)}${rh}</div>`;
     }).join('') : '<p class="muted">Ehhez az incidenshez még nem kapcsolódik közlés.</p>';
     return `<div class="ip" data-id="${esc(inc.id)}">
       <div class="ip-h"><span class="ip-code" style="background:${sev(inc.severity).c}">${esc(LWP.incCode(inc))}</span><b>${esc(inc.title)}</b></div>
       <div class="ip-meta"><span>🕒 ${U.fmtTime(inc.created_at)}</span><span>📍 ${esc(inc.place || inc.county || '–')}${inc.county && inc.place ? ' (' + esc(inc.county) + ')' : ''}</span><span>⚠ ${esc(sev(inc.severity).l)}</span></div>
       <div class="ip-meta"><span>🎯 ${esc(tg)}</span>${inc.unit_id ? `<span>🛡 ${esc(unitName(inc.unit_id))}</span>` : ''}</div>
       <div class="ip-desc">${U.sanitize(inc.body || '')}</div>
-      <h5>Releváns és kapcsolódó közlések (${msgs.length})</h5>
-      <div class="ip-list">${list}</div>${msgs.length > 3 && !o._expand ? `<button class="ip-more" data-more>+ ${msgs.length - 3} további közlés</button>` : ''}
+      <h5>Releváns és kapcsolódó közlések (${shown.length}${nrep ? ', ' + nrep + ' válasz' : ''})</h5>
+      <div class="ip-list">${list}</div>
       <div class="ip-act">${o.onReply ? '<button class="btn pri sm" data-reply>💬 Közlés ehhez az incidenshez</button>' : ''}${o.canMod ? '<button class="btn warn sm" data-rm>🗑 Eltávolítás a térképről</button>' : ''}</div>
     </div>`;
   }
@@ -108,7 +116,7 @@
     }
     function renderPanel() {
       const inc = LWP.incident(openId); if (!inc) return closePanel();
-      const sig = JSON.stringify([inc.title, inc.body, o._expand, S.msgs.filter(m => m.incident === inc.id && !m.deleted).length]);
+      const sig = JSON.stringify([inc.title, inc.body, o._expand, S.msgs.filter(m => (m.incident === inc.id || m.reply_to) && !m.deleted).length]);
       if (panel && sig === psig) { positionPanel(); return; } psig = sig;
       if (!panel) { panel = document.createElement('div'); panel.className = 'ippop2'; document.body.appendChild(panel); }
       panel.innerHTML = '<button class="ip-x" data-close aria-label="Bezár">×</button>' + popupHTML(inc, o); positionPanel();

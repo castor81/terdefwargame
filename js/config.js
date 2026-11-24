@@ -1,6 +1,6 @@
 /* TERDEF wargaming platform – futásidejű beállítások (publikus, csak olvasó kulcs) */
 window.LWP_CONFIG = {
-  version: '0.2.3',
+  version: '0.2.4',
   date: '2026-11-24',
   app: 'TERDEF wargaming platform',
   supabaseUrl: 'https://xaklmjaexyhcbztklyqf.supabase.co',

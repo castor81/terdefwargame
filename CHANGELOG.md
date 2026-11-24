@@ -1,4 +1,7 @@
 # Változásnapló
+## v0.2.4 – 2026-11-24
+- Térképi incidens-popup: az eredeti közlések alatt megjelennek a rájuk adott válaszok is (reply_to alapján); a lista az ablakon belül görgethető.
+
 ## v0.2.3 – 2026-11-24
 - COP: a térképes felület neve „Közös operatív kép”, a hírfolyamé „JCHAT”.
 - Mindkét panel jobb felső sarkában teljes képernyő ikon (⛶), kiterjesztve bezárás ikon (✕, Esc is).
