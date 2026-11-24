@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TERDEF wargaming platform</title>
+<meta name="theme-color" content="#262a3d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 3 42 10v14c0 10-8 18-18 21C14 42 6 34 6 24V10z' fill='%23262a3d'/%3E%3Cpath d='M24 15 35 33H13z' fill='%23b5850f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/leaflet.css">
+<link rel="stylesheet" href="css/app.css?v=0.1.0">
+</head>
+<body>
+<div id="boot" class="boot">TERDEF<small>Betöltés…</small></div>
+<main id="stage" aria-label="Belépő oldal" hidden>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <header class="titleblock"><h1 id="title">TERDEF</h1><p id="subtitle">Húzd ki a biztosítószeget a belépéshez</p></header>
+  <div id="hint" class="hint" hidden><span id="hint-arrow">←</span> Húzd ki a pint</div>
+  <div id="loader" class="loader" role="status" aria-live="polite"><div class="loader-bar"><i id="loader-fill"></i></div><span id="loader-text">Betöltés… 0%</span></div>
+  <button id="skip" class="skip" type="button">Pin kihúzása billentyűzettel</button>
+  <button id="sound" class="sound" type="button" aria-pressed="false" aria-label="Hang be/ki">♪</button>
+  <div id="flash" class="flash" aria-hidden="true"></div>
+  <footer class="version" id="version"></footer>
+</main>
+<div id="login" class="glogin" role="dialog" aria-modal="true" aria-labelledby="login-title" hidden></div>
+<div id="app" class="app"></div>
+<noscript><p style="padding:2rem">Az oldal működéséhez JavaScript szükséges.</p></noscript>
+<script src="js/vendor/supabase.js"></script>
+<script src="js/vendor/chart.js"></script>
+<script src="js/vendor/qrcode.js"></script>
+<script src="js/vendor/mammoth.js"></script>
+<script src="js/vendor/leaflet.js"></script>
+<script src="js/config.js"></script>
+<script src="js/org.js"></script>
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/map.js"></script>
+<script src="js/jemm.js"></script>
+<script src="js/entry.js"></script>
+<script src="js/views.js"></script>
+</body>
+</html>
