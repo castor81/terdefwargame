@@ -48,6 +48,15 @@
     m.querySelector('#qz').oninput = e => m.style.setProperty('--qs', e.target.value + 'px');
     return m;
   }
+  /* teljes képernyő ikon (jobb felső sarok) + bezárás ikon kiterjesztett állapotban */
+  function addFs(el, after) {
+    const b = document.createElement('button'); b.className = 'fs-btn'; b.type = 'button';
+    const set = on => { el.classList.toggle('fs', on); document.body.classList.toggle('fs-open', on); b.textContent = on ? '✕' : '⛶'; b.title = b.ariaLabel = on ? 'Bezárás' : 'Teljes képernyő'; after && after(on); };
+    b.onclick = () => set(!el.classList.contains('fs'));
+    el.appendChild(b); set(false);
+    const esc = e => { if (e.key === 'Escape' && el.classList.contains('fs')) set(false); };
+    document.addEventListener('keydown', esc); cleanup.push(() => document.removeEventListener('keydown', esc));
+  }
   function viewCOP() {
     mount(() => {
       document.body.classList.add('cop-body');
@@ -57,11 +66,14 @@
           <div class="acts"><span id="clock" class="clock"></span><button class="btn" id="bqr">QR-kódok</button><button class="btn pri" id="bdash">Dashboard</button><button class="btn" id="bfs" title="Teljes képernyő">⛶</button></div></header>
         <section class="branches" id="br"></section>
         <section class="mid mid-map"><aside class="side glass" id="sl"></aside><div class="mapwrap glass" id="mapw"></div>
-          <div class="chat glass"><div class="chat-h"><b>Közös operatív kép</b><span>közlések és csoportjelentések</span></div><div id="feed"></div></div>
+          <div class="chat glass" id="chatw"><div class="chat-h"><b>JCHAT</b><span>közlések és csoportjelentések</span></div><div id="feed"></div></div>
           <aside class="side glass" id="sr"></aside></section></div>`;
       const feed = U.Feed($('#feed'), { channel: 'cop', actor: null, big: true, collapse: true, emptyText: 'Várakozás az első közlésre…' });
       U.notifStart({ relevant: m => m.channel === 'cop', mine: () => false });
       const mapCtl = window.TDWMap.create($('#mapw'), { visible: inc => inc.show_cop !== false, msgFilter: m => m.channel === 'cop', autoFlash: true });
+      $('#mapw').insertAdjacentHTML('beforeend', '<div class="fs-title">Közös operatív kép</div>');
+      addFs($('#mapw'), () => mapCtl.map && setTimeout(() => mapCtl.map.invalidateSize(), 60));
+      addFs($('#chatw'), () => feed.forceBottom && feed.forceBottom());
       cleanup.push(() => mapCtl.destroy());
       const follow = document.createElement('label'); follow.className = 'mapfollow'; follow.innerHTML = '<input type="checkbox" checked> új incidensre ugrás'; $('#mapw').appendChild(follow);
       let lastSeq = Math.max(0, ...S.incidents.map(x => x.seq || 0));

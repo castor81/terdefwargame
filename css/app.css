@@ -478,3 +478,15 @@ body.plain .glogin{background:transparent}
 .post.flash{animation:pflash 2.2s ease-out}@keyframes pflash{0%,30%{box-shadow:0 0 0 3px rgba(181,133,15,.8)}100%{box-shadow:0 0 0 0 rgba(181,133,15,0)}}
 .cx-reply{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:5px 9px;border-left:3px solid var(--goldl);border-radius:6px;background:rgba(100,93,69,.12);font-size:.78rem}.cx-reply[hidden]{display:none}.cx-reply span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cx-reply button{border:0;background:none;font-size:1rem;color:var(--ink2)}
 @media (max-width:760px){.rpl{opacity:.9;padding:4px 8px}}
+
+/* v0.2.3 – teljes képernyős panelek (Közös operatív kép / JCHAT) */
+.mapwrap,.chat{position:relative}
+.fs-btn{position:absolute;top:8px;right:8px;z-index:1200;width:32px;height:32px;border-radius:8px;border:1px solid var(--edge2);background:rgba(38,42,61,.88);color:#e4dfca;font-size:1.05rem;line-height:1;cursor:pointer}
+.fs-btn:hover{background:#a43b26}
+.chat>.chat-h{padding-right:48px}
+.mapwrap .leaflet-top.leaflet-right{margin-right:42px}
+.fs-title{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1100;background:rgba(38,42,61,.85);color:#e4dfca;font:600 .8rem Montserrat,sans-serif;letter-spacing:.04em;padding:5px 12px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.mapwrap.fs,.chat.fs{position:fixed!important;inset:0;z-index:3000;width:auto!important;height:auto!important;max-height:none!important;min-height:0!important;border-radius:0;background:#262a3d;display:flex;flex-direction:column}
+.chat.fs #feed{flex:1;min-height:0;overflow-y:auto}
+.mapwrap.fs .tdwmap-c{position:absolute;inset:0}
+body.fs-open{overflow:hidden}

@@ -1,4 +1,8 @@
 # Változásnapló
+## v0.2.3 – 2026-11-24
+- COP: a térképes felület neve „Közös operatív kép”, a hírfolyamé „JCHAT”.
+- Mindkét panel jobb felső sarkában teljes képernyő ikon (⛶), kiterjesztve bezárás ikon (✕, Esc is).
+
 ## v0.2.2 – 2026-11-24
 - Javítva: a csoportok hírfolyama (COP / Gyakorlatvezető / Csoportok) sok közlésnél nem görgethető – a görgetés mobilon és asztali nézetben is működik.
 
