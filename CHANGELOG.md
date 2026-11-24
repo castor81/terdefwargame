@@ -1,4 +1,7 @@
 # Változásnapló
+## v0.2.2 – 2026-11-24
+- Javítva: a csoportok hírfolyama (COP / Gyakorlatvezető / Csoportok) sok közlésnél nem görgethető – a görgetés mobilon és asztali nézetben is működik.
+
 ## v0.2.1 – 2026-11-24
 - Hírfolyam: válasz adott közlésre (↩ gomb), messenger-szerű idézett előnézettel a válaszban; az idézetre kattintva a hírfolyam az eredeti közlésre ugrik. Új `tdw_messages.reply_to` oszlop.
 

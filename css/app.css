@@ -410,8 +410,8 @@ body.plain .glogin{background:transparent}
 .leaflet-control-layers{border-radius:8px;font:12px var(--font);background:rgba(244,240,224,.96)}
 .maprst{display:block;width:30px;height:30px;line-height:30px;text-align:center;font-size:18px;background:#fff;color:#262a3d;text-decoration:none;border-radius:4px}
 .mapfollow{bottom:30px;left:10px}
-.gmain>#f,.mapwrap,#mn .mapwrap{isolation:isolate;overflow:hidden;position:relative}
-.gmain>#f{display:flex;flex-direction:column}.gmain>#f>.tdwmap-c{position:absolute}
+.mapwrap,#mn .mapwrap{isolation:isolate;overflow:hidden;position:relative}
+.gmain>#f{isolation:isolate;position:relative;display:flex;flex-direction:column}.gmain>#f:not(.feed){overflow:hidden}.gmain>#f.feed{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}.gmain>#f>.tdwmap-c{position:absolute}
 
 /* lebegő incidens-kártya (a térképen kívülre is kiléphet) */
 .ippop2{position:fixed;z-index:2000;width:min(340px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:visible;background:#f7f4e6;color:var(--ink);border:1px solid var(--edge);border-radius:12px;padding:10px 12px 11px;box-shadow:0 14px 40px rgba(38,42,61,.38);font:12px/1.4 var(--font)}
