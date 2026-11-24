@@ -1,4 +1,8 @@
 # Változásnapló
+## v0.2.0 – 2026-11-24
+- Terheléses ellenőrző teszt alapján: olvasási nyugta (`tdw_reads`: mikor látta / nyitotta meg az üzenetet a szervezeti elem) és időbélyeges emoji-reakció (`tdw_reactions.created_at`).
+- Új gyakorlatvezetői fül: **Nyomkövetés** – incidensenként kinek szólt, ki mikor kapta, látta, nyitotta meg, válaszolt (szöveggel), reagált, lépett be; „nem kapta” lista; CSV-export.
+
 ## v0.1.2 – 2026-11-24
 - Mobilbarát csoportfelület: kompakt fejléc, négyoszlopos ikonos fülsor, áttekinthetőbb (rövidített) hírfolyam a COP és a gyakorlatvezetői csatornán, kompakt üzenetíró.
 

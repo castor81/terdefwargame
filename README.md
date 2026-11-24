@@ -5,7 +5,7 @@ MH Területvédelmi és Hadkiegészítő Parancsnokság (MH THP) és alárendelt
 ## Funkciók
 - **Belépő**: gránátos oldal → szerepválasztás (gyakorlatvezető kóddal; szervezeti elemek kód nélkül).
 - **COP**: teljes magyarországi közigazgatási térkép az ezredek működési területeivel, háromszög-incidensekkel, nagyítással/húzással, popuppal (leírás + kapcsolódó közlések); hagyományos hírfolyam; a közlések incidenshez köthetők, térkép-ikonnal.
-- **Gyakorlatvezető**: COP-közlés, Térkép/incidensek, **JEMM generátor** (Event → Storyline → Inject, bejátszás kattintással mindenkinek vagy kijelölt szervezeti elemeknek), Szervezeti elemek, Forgatókönyv (Word), Beállítások.
+- **Gyakorlatvezető**: COP-közlés, Térkép/incidensek, **JEMM generátor** (Event → Storyline → Inject, bejátszás kattintással mindenkinek vagy kijelölt szervezeti elemeknek), Nyomkövetés (kapta/látta/megnyitotta/válaszolt/reagált/belépett, CSV), Szervezeti elemek, Forgatókönyv (Word), Beállítások.
 - Minden Ludovika-funkció megmaradt (reakciók, média, riasztás, QR-kódok, dashboard, exportok), három ág helyett egyetlen „Területvédelem és Hadkiegészítés” struktúrában.
 
 ## Futtatás

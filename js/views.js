@@ -206,13 +206,13 @@
       if (!sessionStorage.getItem('tdw-lead')) return leadLogin();
       const L = { tab: 'cop', gid: S.groups[0] ? S.groups[0].id : null, chan: 'lead' };
       app.innerHTML = `<div class="lead"><aside class="nav glass">${brand}<nav>
-        <button data-t="cop">📣 COP-közlés</button><button data-t="map">🗺 Térkép / incidensek</button><button data-t="jemm">🎯 JEMM generátor</button><button data-t="groups">👥 Szervezeti elemek</button><button data-t="script">📋 Forgatókönyv (Word)</button><button data-t="settings">⚙ Beállítások</button></nav>
+        <button data-t="cop">📣 COP-közlés</button><button data-t="map">🗺 Térkép / incidensek</button><button data-t="jemm">🎯 JEMM generátor</button><button data-t="audit">🔎 Nyomkövetés</button><button data-t="groups">👥 Szervezeti elemek</button><button data-t="script">📋 Forgatókönyv (Word)</button><button data-t="settings">⚙ Beállítások</button></nav>
         <div class="navf"><a href="#/cop" target="_blank" rel="noopener">COP megnyitása ↗</a><a href="#/cop/dashboard" target="_blank" rel="noopener">Dashboard ↗</a><button id="lo">Kilépés</button><small>${ver()}</small></div></aside>
         <section class="main glass" id="mn"></section></div>`;
       U.notifStart({ relevant: m => m.author_type === 'group' && (m.channel === 'cop' || m.channel.startsWith('lead:')), mine: m => m.author_type === 'lead' });
       U.soundBtn($('.navf'));
       let tabSync = () => { };
-      const go = t => { if (L.dispose) { L.dispose(); L.dispose = null; } L.tab = t; $$('.nav nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); tabSync = ({ cop: leadCop, map: leadMap, jemm: window.TDWJEMM.leadJemm, groups: leadGroups, script: leadScript, settings: leadSettings }[t])(L, $('#mn')); tabSync && tabSync(); };
+      const go = t => { if (L.dispose) { L.dispose(); L.dispose = null; } L.tab = t; $$('.nav nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); tabSync = ({ cop: leadCop, map: leadMap, jemm: window.TDWJEMM.leadJemm, audit: window.TDWAudit.leadAudit, groups: leadGroups, script: leadScript, settings: leadSettings }[t])(L, $('#mn')); tabSync && tabSync(); };
       $('.nav nav').onclick = e => { const b = e.target.closest('[data-t]'); if (b) go(b.dataset.t); };
       $('#lo').onclick = () => { sessionStorage.removeItem('tdw-lead'); location.hash = '#/'; };
       cleanup.push(LWP.on(() => tabSync && tabSync()));
@@ -454,7 +454,7 @@
           return;
         }
         if (G.tab === 'dm' && !G.other) { $('#f').innerHTML = '<div class="empty">Válassz egy csoportot a bal oldali listából.</div>'; feed = null; return; }
-        feed = U.Feed($('#f'), { channel: c, actor: gid, collapse: c === 'cop' || c === 'lead:' + gid, canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
+        feed = U.Feed($('#f'), { channel: c, actor: gid, reader: gid, collapse: c === 'cop' || c === 'lead:' + gid, canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
         U.Composer($('#c'), { placeholder: G.tab === 'cop' ? 'Közlés a COP-ra (mindenki látja)…' : G.tab === 'lead' ? 'Üzenet a gyakorlatvezetőnek…' : 'Üzenet a másik csoportnak…', incidents: () => S.incidents.filter(vis), onSend: async ({ body, file, incident }) => { await post({ channel: c, type: 'group', id: gid, html: body, file, incident }); feed.forceBottom(); beat(); } });
       }
       function sync() {

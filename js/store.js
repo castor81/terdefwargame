@@ -4,7 +4,7 @@
   const CFG = window.LWP_CONFIG;
   const BR = window.ORG.sections;
   const S = {
-    groups: [], msgs: [], reacts: [], events: [], incidents: [],
+    groups: [], msgs: [], reacts: [], events: [], incidents: [], reads: [],
     cfg: { name: 'TERDEF gyakorlat', yellow: 5, red: 15, pin: CFG.leadPinSha256 || '' },
     ready: false, mode: 'local', error: null
   };
@@ -29,6 +29,11 @@
       const n = S.msgs.length;
       if (n > 1 && S.msgs[n - 2].created_at > r.created_at) S.msgs.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
     }
+    emit();
+  }
+  function upsertRead(r) {
+    const i = S.reads.findIndex(x => x.message_id === r.message_id && x.group_id === r.group_id);
+    if (i < 0) S.reads.push(r); else S.reads[i] = Object.assign({}, S.reads[i], r, { seen_at: S.reads[i].seen_at || r.seen_at, opened_at: S.reads[i].opened_at || r.opened_at || null });
     emit();
   }
   function addReact(r) {
@@ -77,13 +82,14 @@
     return {
       name: 'supabase',
       async load() {
-        const [g, m, r, c, e, inc] = await Promise.all([all('tdw_groups', 'id'), all('tdw_messages', 'created_at'), all('tdw_reactions', 'created_at'), all('tdw_config', 'key'), all('tdw_events', 'id'), all('tdw_incidents', 'seq')]);
-        S.groups = g.map(normG); S.msgs = m; S.reacts = r; S.events = e; S.incidents = inc.filter(x => !x.deleted);
+        const [g, m, r, c, e, inc, rd] = await Promise.all([all('tdw_groups', 'id'), all('tdw_messages', 'created_at'), all('tdw_reactions', 'created_at'), all('tdw_config', 'key'), all('tdw_events', 'id'), all('tdw_incidents', 'seq'), all('tdw_reads', 'seen_at')]);
+        S.groups = g.map(normG); S.msgs = m; S.reacts = r; S.events = e; S.incidents = inc.filter(x => !x.deleted); S.reads = rd;
         c.forEach(x => applyCfg(x.key, x.value));
         const ch = sb.channel('tdw-live');
         const on = (table, fn) => ch.on('postgres_changes', { event: '*', schema: 'public', table }, fn);
         on('tdw_messages', p => { if (p.new && p.new.id) upsertMsg(p.new); });
         on('tdw_reactions', p => { if (p.eventType === 'DELETE') delReact(p.old); else addReact(p.new); });
+        on('tdw_reads', p => { if (p.new && p.new.message_id) upsertRead(p.new); });
         on('tdw_groups', p => { if (p.new && p.new.id) upsertGroup(p.new); });
         on('tdw_config', p => { if (p.new && p.new.key) applyCfg(p.new.key, p.new.value); });
         on('tdw_events', p => { if (p.new && p.new.id) addEvent(p.new); });
@@ -97,6 +103,7 @@
             (data || []).forEach(upsertMsg);
             const { data: gs } = await sb.from('tdw_groups').select('*');
             (gs || []).forEach(upsertGroup);
+            { const { data: rr } = await sb.from('tdw_reads').select('*'); if (rr) { S.reads = rr; emit(); } }
             const { data: ic } = await sb.from('tdw_incidents').select('*').order('seq'); if (ic) { S.incidents = ic.filter(x => !x.deleted); emit(); }
           } catch (_) { /* hálózati hiba: a következő ciklus újrapróbálja */ }
         }, 20000);
@@ -119,6 +126,14 @@
         if (on) { addReact(row); const { error } = await sb.from('tdw_reactions').insert(row); if (error && error.code !== '23505') { delReact(row); throw error; } }
         else { delReact(row); const { error } = await sb.from('tdw_reactions').delete().match(row); if (error) throw error; }
       },
+      async markRead(message_id, group_id, opened) {
+        const now = new Date().toISOString(), ex = S.reads.find(x => x.message_id === message_id && x.group_id === group_id);
+        if (ex && (!opened || ex.opened_at)) return;
+        upsertRead({ message_id, group_id, seen_at: now, opened_at: opened ? now : null });
+        if (!ex) { const { error } = await sb.from('tdw_reads').upsert({ message_id, group_id, seen_at: now, opened_at: opened ? now : null }, { onConflict: 'message_id,group_id', ignoreDuplicates: true }); if (error) { console.warn(error); return; } }
+        else if (opened) { const { error } = await sb.from('tdw_reads').update({ opened_at: now }).eq('message_id', message_id).eq('group_id', group_id).is('opened_at', null); if (error) console.warn(error); }
+        if (!ex && opened) await sb.from('tdw_reads').update({ opened_at: now }).eq('message_id', message_id).eq('group_id', group_id).is('opened_at', null);
+      },
       async patchGroup(id, patch) { upsertGroup(Object.assign({ id }, patch)); const { error } = await sb.from('tdw_groups').update(patch).eq('id', id); if (error) throw error; },
       async patchMsg(id, patch) { upsertMsg(Object.assign({ id }, patch)); const { error } = await sb.from('tdw_messages').update(patch).eq('id', id); if (error) throw error; },
       async logEvent(group_id, type, data) { const { error } = await sb.from('tdw_events').insert({ group_id, type, data: data || null }); if (error) console.warn(error); },
@@ -137,7 +152,7 @@
     function read() { try { return JSON.parse(localStorage.getItem(LK)); } catch (_) { return null; } }
     function pull() {
       const d = read(); if (!d) return;
-      S.groups = d.groups.map(normG); S.msgs = d.msgs; S.reacts = d.reacts; S.events = d.events; S.incidents = (d.incidents || []).filter(x => !x.deleted);
+      S.groups = d.groups.map(normG); S.msgs = d.msgs; S.reacts = d.reacts; S.events = d.events; S.reads = d.reads || []; S.incidents = (d.incidents || []).filter(x => !x.deleted);
       Object.keys(d.cfg).forEach(k => applyCfg(k, d.cfg[k]));
     }
     function mutate(fn) {
@@ -170,6 +185,11 @@
           d.reacts = d.reacts.filter(x => !(x.message_id === message_id && x.actor === actor && x.emoji === emoji));
           if (on) d.reacts.push({ message_id, actor, emoji, created_at: new Date().toISOString() });
         });
+      },
+      async markRead(message_id, group_id, opened) {
+        const now = new Date().toISOString(), ex = S.reads.find(x => x.message_id === message_id && x.group_id === group_id);
+        if (ex && (!opened || ex.opened_at)) return;
+        mutate(d => { d.reads = d.reads || []; let r = d.reads.find(x => x.message_id === message_id && x.group_id === group_id); if (!r) d.reads.push(r = { message_id, group_id, seen_at: now, opened_at: null }); if (opened && !r.opened_at) r.opened_at = now; });
       },
       async patchGroup(id, patch) { mutate(d => { const g = d.groups.find(x => x.id === id); Object.assign(g, patch); }); },
       async patchMsg(id, patch) { mutate(d => { const g = d.msgs.find(x => x.id === id); Object.assign(g, patch); }); },
@@ -233,6 +253,7 @@
     async setHelp(gid, v) { await B.patchGroup(gid, { help: v }); if (v) await B.logEvent(gid, 'help'); },
     patchMsg: (id, p) => B.patchMsg(id, p),
     logEvent: (g, t, d) => B.logEvent(g, t, d),
+    markRead: (m, g, o) => B.markRead(m, g, o),
     setCfg: (k, v) => B.setCfg(k, v),
     reloadEvents: () => B.reloadEvents()
   };

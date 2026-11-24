@@ -464,3 +464,8 @@ body.plain .glogin{background:transparent}
   .cx-tools{justify-content:space-between;flex-wrap:nowrap;gap:4px}.cx-tools .ib{width:36px;height:36px;flex:none}.cx-tools .send{flex:1;padding:8px}
   #toast{max-width:94vw}
 }
+
+/* nyomkövetés */
+.audit{flex:1;min-height:0;display:flex;flex-direction:column}.au-sum{display:flex;gap:10px;flex-wrap:wrap;padding:10px 16px;align-items:stretch}.au-sum .kpi{min-width:92px}.au-miss{flex:1;min-width:220px;font-size:.8rem;align-self:center;color:var(--ink2)}
+.au-tb{flex:1;min-height:0;overflow:auto;padding:0 16px 14px}.au-t{width:100%;border-collapse:collapse;font-size:.8rem}.au-t th{position:sticky;top:0;background:#efebd8;text-align:left;padding:7px 8px;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);border-bottom:2px solid var(--edge)}
+.au-t td{padding:6px 8px;border-bottom:1px solid var(--edge2);vertical-align:top;white-space:nowrap}.au-t td:nth-child(5){white-space:normal;min-width:180px}.au-t small{display:block;color:var(--mut);font-size:.68rem;white-space:normal}.au-no{color:#a43b26;opacity:.75}

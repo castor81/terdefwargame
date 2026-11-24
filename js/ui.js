@@ -166,6 +166,12 @@
       el.className = 'post' + (m.kind === 'event' ? ' event' : '') + (m.author_type === 'lead' ? ' fromlead' : '');
       if (Notif.released.has(m.id)) { el.classList.add('fresh'); if (Notif.released.get(m.id)) el.classList.add('alarm'); setTimeout(() => el.classList.remove('fresh', 'alarm'), 5000); }
       el.dataset.id = m.id;
+      if (o.reader && !(m.author_type === 'group' && m.author_id === o.reader)) {
+        const seeBody = () => LWP.markRead(m.id, o.reader, !o.collapse).catch(() => { });
+        let tm = null; const io = new IntersectionObserver(es => { es.forEach(en => { clearTimeout(tm); if (en.isIntersecting && document.visibilityState === 'visible') tm = setTimeout(() => { if (document.visibilityState === 'visible') { seeBody(); io.disconnect(); } }, 1000); }); }, { threshold: .6 });
+        io.observe(el); el._io = io;
+        if (o.collapse) el.addEventListener('click', e => { if (!e.target.closest('button,a,video,audio,img,input,.rx,.mod') && !el.classList.contains('open')) LWP.markRead(m.id, o.reader, true).catch(() => { }); });
+      }
       el.style.setProperty('--c', a.color);
       const body = m.body ? (m.author_type === 'group' ? plainHTML(m.body) : sanitize(m.body)) : '';
       const mt = mediaType(m);

@@ -19,7 +19,7 @@ html = rd('index.html')
 head, body = html.split('<body>', 1)
 head = re.sub(r'<link rel="stylesheet" href="css/[^>]*>\n?', '', head).replace('</head>', '<style>\n' + css + '\n</style>\n</head>')
 body = re.sub(r'<script src="[^>]*></script>\n?', '', body.replace('</body>', '')).replace('</html>', '')
-scripts = ''.join('<script>\n%s\n</script>\n' % esc(t) for t in [js('vendor/supabase.js'), js('vendor/chart.js'), js('vendor/qrcode.js'), js('vendor/mammoth.js'), js('vendor/leaflet.js'), cfg, js('org.js'), js('store.js'), js('ui.js'), map_js, js('jemm.js'), entry, views])
+scripts = ''.join('<script>\n%s\n</script>\n' % esc(t) for t in [js('vendor/supabase.js'), js('vendor/chart.js'), js('vendor/qrcode.js'), js('vendor/mammoth.js'), js('vendor/leaflet.js'), cfg, js('org.js'), js('store.js'), js('ui.js'), map_js, js('jemm.js'), js('audit.js'), entry, views])
 hu = '<script>window.__HU=%s;</script>\n' % rd('assets/hu-counties.json').strip()
 gs = '<script type="text/plain" id="grenade-src">\n%s\n</script>\n' % esc(gren)
 out = head + '<body>' + body + hu + gs + scripts + '</body>\n</html>\n'
