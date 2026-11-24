@@ -28,7 +28,7 @@
       media_url = up.url; media_name = up.name; media_type = U.kindOfFile(o.file);
       if (kind !== 'event') kind = media_type;
     } else if (o.media) { media_url = o.media.url; media_name = o.media.name; media_type = o.media.type; if (kind !== 'event') kind = media_type; }
-    return LWP.send({ channel: o.channel, author_type: o.type, author_id: o.id, kind, body: o.html || null, media_url, media_name, media_type, pinned: !!o.pinned, incident: o.incident || null });
+    return LWP.send({ channel: o.channel, author_type: o.type, author_id: o.id, kind, body: o.html || null, media_url, media_name, media_type, pinned: !!o.pinned, incident: o.incident || null, reply_to: o.reply_to || window.UI._sendReply || null });
   }
 
   /* ---------- nyitóoldal ---------- */

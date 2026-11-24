@@ -161,6 +161,16 @@
       const add = o.actor ? `<span class="rxadd"><button class="rxplus" data-rxopen title="Reagálok">☺＋</button><span class="picker">${EMOJI.map(e => `<button data-rx="${e}">${e}</button>`).join('')}</span></span>` : '';
       return chips + add;
     }
+    function snip(q) {
+      let t = q.body ? shortOf(q.author_type === 'group' ? plainHTML(q.body) : sanitize(q.body)) : '';
+      if (!t) { const mt = mediaType(q); t = mt === 'image' ? '🖼 kép' : mt === 'video' ? '🎬 videó' : mt === 'audio' ? '🎵 hang' : q.media_name ? '📎 ' + q.media_name : ''; }
+      return t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '…' : t;
+    }
+    function quoteHTML(m) {
+      if (!m.reply_to) return '';
+      const q = S.msgs.find(x => x.id === m.reply_to);
+      return `<div class="rq" data-q="${esc(m.reply_to)}" title="Ugrás az eredeti közlésre"><b>↩ ${q && !q.deleted ? esc(author(q).name) : 'Közlés'}</b><span>${q && !q.deleted ? esc(snip(q)) : '(törölt vagy nem elérhető közlés)'}</span></div>`;
+    }
     function build(m) {
       const a = author(m), el = document.createElement('article');
       el.className = 'post' + (m.kind === 'event' ? ' event' : '') + (m.author_type === 'lead' ? ' fromlead' : '');
@@ -170,7 +180,7 @@
         const seeBody = () => LWP.markRead(m.id, o.reader, !o.collapse).catch(() => { });
         let tm = null; const io = new IntersectionObserver(es => { es.forEach(en => { clearTimeout(tm); if (en.isIntersecting && document.visibilityState === 'visible') tm = setTimeout(() => { if (document.visibilityState === 'visible') { seeBody(); io.disconnect(); } }, 1000); }); }, { threshold: .6 });
         io.observe(el); el._io = io;
-        if (o.collapse) el.addEventListener('click', e => { if (!e.target.closest('button,a,video,audio,img,input,.rx,.mod') && !el.classList.contains('open')) LWP.markRead(m.id, o.reader, true).catch(() => { }); });
+        if (o.collapse) el.addEventListener('click', e => { if (!e.target.closest('button,a,video,audio,img,input,.rx,.mod,.rq') && !el.classList.contains('open')) LWP.markRead(m.id, o.reader, true).catch(() => { }); });
       }
       el.style.setProperty('--c', a.color);
       const body = m.body ? (m.author_type === 'group' ? plainHTML(m.body) : sanitize(m.body)) : '';
@@ -180,8 +190,8 @@
       else if (mt === 'video') media = `<video class="pm" controls preload="metadata" src="${esc(m.media_url)}"></video>`;
       else if (mt === 'audio') media = `<audio class="pa" controls preload="metadata" src="${esc(m.media_url)}"></audio>`;
       else if (mt === 'file') media = `<a class="pf" href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'fájl')}</a>`;
-      el.innerHTML = `<header><span class="ava">${esc(a.short)}</span><div class="who"><b>${esc(a.name)}</b>${a.badge ? `<span class="badge">${esc(a.badge)}</span>` : ''}${m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : ''}<span class="incslot"></span><time>${fmtTime(m.created_at)}</time></div>${(o.canMod || (o.canDel && o.canDel(m))) ? `<span class="mod">${o.canMod ? '<button data-pin title="Kiemelés a COP-on">📌 Kiemel</button>' : ''}<button data-del title="Közlés törlése">🗑 Törlés</button></span>` : ''}</header>${o.collapse && body ? `<div class="pb short">${esc(shortOf(body))}<span class="more">… tovább</span></div>` : ''}${body ? `<div class="pb full">${body}</div>` : ''}${media ? `<div class="pmedia">${media}</div>` : ''}<footer class="rx"></footer>`;
-      if (o.collapse) { el.classList.add('col'); el.addEventListener('click', e => { if (e.target.closest('button,a,video,audio,img,input,.rx,.mod')) return; el.classList.toggle('open'); }); }
+      el.innerHTML = `<header><span class="ava">${esc(a.short)}</span><div class="who"><b>${esc(a.name)}</b>${a.badge ? `<span class="badge">${esc(a.badge)}</span>` : ''}${m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : ''}<span class="incslot"></span><time>${fmtTime(m.created_at)}</time></div>${(o.canMod || (o.canDel && o.canDel(m))) ? `<span class="mod">${o.canMod ? '<button data-pin title="Kiemelés a COP-on">📌 Kiemel</button>' : ''}<button data-del title="Közlés törlése">🗑 Törlés</button></span>` : ''}<button class="rpl" data-rpl title="Válasz erre a közlésre" aria-label="Válasz">↩</button></header>${quoteHTML(m)}${o.collapse && body ? `<div class="pb short">${esc(shortOf(body))}<span class="more">… tovább</span></div>` : ''}${body ? `<div class="pb full">${body}</div>` : ''}${media ? `<div class="pmedia">${media}</div>` : ''}<footer class="rx"></footer>`;
+      if (o.collapse) { el.classList.add('col'); el.addEventListener('click', e => { if (e.target.closest('button,a,video,audio,img,input,.rx,.mod,.rq')) return; el.classList.toggle('open'); }); }
       el._sig = null;
       return el;
     }
@@ -225,6 +235,8 @@
     root.addEventListener('click', e => {
       const post = e.target.closest('.post'); if (!post) return;
       const id = post.dataset.id;
+      const rpl = e.target.closest('[data-rpl]'); if (rpl) { const m = S.msgs.find(x => x.id === id); if (m) window.UI.setReply(m); return; }
+      const rq = e.target.closest('[data-q]'); if (rq) { const t = nodes.get(rq.dataset.q); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); setTimeout(() => t.classList.remove('flash'), 2200); } return; }
       const open = e.target.closest('[data-rxopen]');
       if (open) { const p = post.querySelector('.picker'); $$('.picker.open', root).forEach(x => x !== p && x.classList.remove('open')); p.classList.toggle('open'); return; }
       const rx = e.target.closest('[data-rx]');
@@ -248,6 +260,7 @@
     const rich = !!o.rich;
     root.classList.add('composer', 'glass-in');
     root.innerHTML = `
+      <div class="cx-reply" hidden></div>
       ${rich ? `<div class="rt"><button data-cmd="bold" title="Félkövér"><b>B</b></button><button data-cmd="italic" title="Dőlt"><i>I</i></button><button data-cmd="underline" title="Aláhúzott"><u>U</u></button><button data-cmd="insertUnorderedList" title="Felsorolás">•≡</button><button data-cmd="insertOrderedList" title="Számozott">1≡</button><button data-cmd="formatBlock" data-arg="H3" title="Címsor">H</button><button data-cmd="removeFormat" title="Formázás törlése">⌫</button></div>` : ''}
       ${(o.extra || o.incidents) ? `<div class="cx-extra">${o.extra || ''}${o.incidents ? '<label class="cx-inc">Kapcsolódó incidens <select data-inc></select></label>' : ''}</div>` : ''}
       <div class="cx-row">
@@ -287,7 +300,7 @@
       if (!textOnly() && !file) return;
       sendBtn.disabled = true; sendBtn.textContent = file ? 'Feltöltés…' : '…';
       try {
-        await o.onSend({ body: textOnly() || (rich && /<img|<li/.test(val())) ? val() : '', file, root, incident: incSel && incSel.value || null });
+        window.UI._sendReply = replyId || null; try { await o.onSend({ body: textOnly() || (rich && /<img|<li/.test(val())) ? val() : '', file, root, incident: incSel && incSel.value || null, reply_to: replyId || null }); } finally { window.UI._sendReply = null; } setReply(null);
         if (incSel && !o.keepIncident) incSel.value = '';
         if (rich) inp.innerHTML = ''; else inp.value = '';
         setFile(null);
@@ -323,7 +336,15 @@
         rec.start(); btn.classList.add('on'); btn.textContent = '⏹';
       } catch (_) { toast('A mikrofon használata nincs engedélyezve.'); rec = null; }
     }
-    return { focus: () => inp.focus(), root, setFile, setIncident(id) { if (incSel) { fillInc(); incSel.value = id || ''; } } };
+    let replyId = null; const bar = root.querySelector('.cx-reply');
+    function setReply(m) {
+      replyId = m ? m.id : null; if (!m) { bar.hidden = true; bar.innerHTML = ''; return; }
+      const a = author(m), t = m.body ? ((d => { d.innerHTML = m.author_type === 'group' ? plainHTML(m.body) : sanitize(m.body); return (d.textContent || '').replace(/\s+/g, ' ').trim(); })(document.createElement('div'))) : (m.media_name || 'média');
+      bar.hidden = false; bar.innerHTML = `<span>↩ Válasz erre: <b>${esc(a.name)}</b> – ${esc(t.length > 80 ? t.slice(0, 78) + '…' : t)}</span><button type="button" aria-label="Mégse">✕</button>`;
+      bar.querySelector('button').onclick = () => setReply(null);
+    }
+    (window.UI._composers = window.UI._composers || new Set()).add({ root, setReply });
+    return { focus: () => inp.focus(), root, setReply, setFile, setIncident(id) { if (incSel) { fillInc(); incSel.value = id || ''; } } };
   }
 
   /* ---------- incidens-fókusz (hírfolyam -> térkép) ---------- */
@@ -362,5 +383,5 @@
   const csvCell = v => { v = v == null ? '' : String(v); return /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   const toCSV = rows => '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
 
-  window.UI = { onIncidentFocus, focusIncident, Notif, notifStart, notifStop, soundBtn, siren, EMOJI, esc, h, $, $$, fmtTime, fmtHM, fmtDur, sanitize, plainHTML, mediaType, kindOfFile, author, actorName, Feed, Composer, toast, lightbox, modal, qrSvg, groupUrl, download, toCSV };
+  window.UI = { setReply(m) { const all = Array.from(window.UI._composers || []).filter(c => c.root.isConnected); if (!all.length) return; all.forEach(c => c.setReply(m)); const r = all[all.length - 1].root.querySelector('.cx-in'); r && r.focus(); }, onIncidentFocus, focusIncident, Notif, notifStart, notifStop, soundBtn, siren, EMOJI, esc, h, $, $$, fmtTime, fmtHM, fmtDur, sanitize, plainHTML, mediaType, kindOfFile, author, actorName, Feed, Composer, toast, lightbox, modal, qrSvg, groupUrl, download, toCSV };
 })();

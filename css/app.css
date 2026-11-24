@@ -469,3 +469,12 @@ body.plain .glogin{background:transparent}
 .audit{flex:1;min-height:0;display:flex;flex-direction:column}.au-sum{display:flex;gap:10px;flex-wrap:wrap;padding:10px 16px;align-items:stretch}.au-sum .kpi{min-width:92px}.au-miss{flex:1;min-width:220px;font-size:.8rem;align-self:center;color:var(--ink2)}
 .au-tb{flex:1;min-height:0;overflow:auto;padding:0 16px 14px}.au-t{width:100%;border-collapse:collapse;font-size:.8rem}.au-t th{position:sticky;top:0;background:#efebd8;text-align:left;padding:7px 8px;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);border-bottom:2px solid var(--edge)}
 .au-t td{padding:6px 8px;border-bottom:1px solid var(--edge2);vertical-align:top;white-space:nowrap}.au-t td:nth-child(5){white-space:normal;min-width:180px}.au-t small{display:block;color:var(--mut);font-size:.68rem;white-space:normal}.au-no{color:#a43b26;opacity:.75}
+
+/* válasz-hivatkozás (messenger-szerű) */
+.rpl{border:0;background:none;color:var(--ink2);font-size:1rem;line-height:1;padding:3px 7px;border-radius:8px;opacity:.55;margin-left:auto;align-self:flex-start}.post:hover .rpl,.rpl:focus-visible{opacity:1}.rpl:hover{background:var(--f2)}
+.post>header{align-items:flex-start}
+.rq{display:flex;flex-direction:column;gap:1px;margin:6px 0 0;padding:4px 9px;border-left:3px solid var(--goldl);border-radius:6px;background:rgba(100,93,69,.1);cursor:pointer;font-size:.78rem;min-width:0}
+.rq b{font-size:.72rem;color:var(--gold)}.rq span{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rq:hover{background:rgba(100,93,69,.18)}
+.post.flash{animation:pflash 2.2s ease-out}@keyframes pflash{0%,30%{box-shadow:0 0 0 3px rgba(181,133,15,.8)}100%{box-shadow:0 0 0 0 rgba(181,133,15,0)}}
+.cx-reply{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:5px 9px;border-left:3px solid var(--goldl);border-radius:6px;background:rgba(100,93,69,.12);font-size:.78rem}.cx-reply[hidden]{display:none}.cx-reply span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cx-reply button{border:0;background:none;font-size:1rem;color:var(--ink2)}
+@media (max-width:760px){.rpl{opacity:.9;padding:4px 8px}}

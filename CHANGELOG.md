@@ -1,4 +1,7 @@
 # Változásnapló
+## v0.2.1 – 2026-11-24
+- Hírfolyam: válasz adott közlésre (↩ gomb), messenger-szerű idézett előnézettel a válaszban; az idézetre kattintva a hírfolyam az eredeti közlésre ugrik. Új `tdw_messages.reply_to` oszlop.
+
 ## v0.2.0 – 2026-11-24
 - Terheléses ellenőrző teszt alapján: olvasási nyugta (`tdw_reads`: mikor látta / nyitotta meg az üzenetet a szervezeti elem) és időbélyeges emoji-reakció (`tdw_reactions.created_at`).
 - Új gyakorlatvezetői fül: **Nyomkövetés** – incidensenként kinek szólt, ki mikor kapta, látta, nyitotta meg, válaszolt (szöveggel), reagált, lépett be; „nem kapta” lista; CSV-export.
