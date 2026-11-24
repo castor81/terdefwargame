@@ -54,6 +54,7 @@
     const set = on => { el.classList.toggle('fs', on); document.body.classList.toggle('fs-open', on); b.textContent = on ? '✕' : '⛶'; b.title = b.ariaLabel = on ? 'Bezárás' : 'Teljes képernyő'; after && after(on); };
     b.onclick = () => set(!el.classList.contains('fs'));
     el.appendChild(b); set(false);
+    el.addEventListener('click', e => { if (el.classList.contains('fs') && e.target.closest('[data-inc]')) setTimeout(() => set(false), 0); });
     const esc = e => { if (e.key === 'Escape' && el.classList.contains('fs')) set(false); };
     document.addEventListener('keydown', esc); cleanup.push(() => document.removeEventListener('keydown', esc));
   }

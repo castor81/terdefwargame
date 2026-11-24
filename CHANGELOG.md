@@ -1,4 +1,9 @@
 # Változásnapló
+## v0.2.5 – 2026-11-24
+- Javítva: a teljes képernyős JCHAT háttere világos, a szöveg jól olvasható.
+- Javítva: teljes képernyős Közös operatív képen az incidens-popup, a kép-nagyítás, a modálok és az értesítések a panel fölött nyílnak (teljes funkcionalitás).
+- JEMM: területi hatály kezelése – a generálási kérés tartalmazza a TA illetékességi vármegyéit és szabályt a helyszínekre; a hatályon kívüli (pl. Heves TA mellett Paks) helyszínek a TA területére kerülnek, ⚠ jelzéssel; bejátszáskor a helyszín és a címzettek területi illetékessége ellenőrzött, eltérésnél a bejátszás blokkolt.
+
 ## v0.2.4 – 2026-11-24
 - Térképi incidens-popup: az eredeti közlések alatt megjelennek a rájuk adott válaszok is (reply_to alapján); a lista az ablakon belül görgethető.
 

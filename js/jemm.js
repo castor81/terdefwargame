@@ -137,6 +137,39 @@
   }
 
   /* ---------- bejátszás ---------- */
+  /* ---------- területi hatály: a helyszín mindig a címzett szervezeti elem(ek) vármegyéiben legyen ---------- */
+  function territory(ids) {
+    if (!ids || !ids.length) return null;
+    const s = new Set();
+    ids.forEach(id => { const o = ORG.get(id); if (!o) return; if (o.level === 'thp') ORG.list.forEach(x => x.county && s.add(x.county)); else (o.counties || []).forEach(c => s.add(c)); });
+    return s;
+  }
+  const inTerr = (T, county) => !T || (county && T.has(county));
+  function townIn(county, k) {
+    const ts = Object.keys(TOWNS).filter(n => window.TDWMap.countyAt(TOWNS[n][0], TOWNS[n][1]) === county);
+    if (ts.length) { const n = ts[k % ts.length]; return { place: n, lat: TOWNS[n][0], lon: TOWNS[n][1] }; }
+    const c = ORG.SEAT && ORG.SEAT[county]; return c ? { place: county + ' vármegye', lat: c[0], lon: c[1] } : null;
+  }
+  function terrText(ids) {
+    const T = territory(ids); if (!T) return '';
+    const rows = ids.map(id => { const o = ORG.get(id); if (!o) return ''; if (o.level === 'thp') return o.name + ': az ország teljes területe'; if (o.level === 'ezred') return o.name + ': ' + o.counties.map(c => { const z = ORG.list.find(x => x.level === 'zaszlo' && x.county === c); return c + ' vármegye (' + (z ? z.num + '. TVZ' : '') + ')'; }).join(', '); return o.name + ': ' + o.county + ' vármegye'; }).filter(Boolean);
+    return 'TERÜLETI HATÁLY (KÖTELEZŐ, ELSŐDLEGES SZEMPONT):\n' + rows.map(r => '  - ' + r).join('\n') + '\nEngedélyezett vármegyék: ' + Array.from(T).join(', ') + '.\nSZABÁLY: minden Inject Location (Name, County, koordináta) mezője KIZÁRÓLAG a fenti vármegyék egyikében lehet, és a szövegben (Title, Description) sem szerepelhet más vármegyében lévő település vagy objektum. A ResponsibleUnit az a zászlóalj legyen, amelynek vármegyéjében a helyszín található. Más szervezeti elem illetékességi területére eső incidenst TILOS generálni.\n\n';
+  }
+  /* a generált tervben a hatályon kívüli helyszíneket a TA területére igazítja, és megjelöli */
+  function enforceTerritory(plan, ids) {
+    const T = territory(ids); if (!T || !plan) return 0; const cs = Array.from(T); let n = 0, k = 0;
+    plan.events.forEach(e => e.storylines.forEach(sl => sl.injects.forEach(i => {
+      const uo = ORG.get(i.unit), uOut = uo && uo.county && !T.has(uo.county);
+      const bad = (i.county && !T.has(i.county)) || (i.lat != null && !i.county);
+      if (!bad) { if (i.county && (!uo || uOut || (uo.county && uo.county !== i.county))) i.unit = ORG.unitsOfCounty(i.county).zaszlo || i.unit; return; }
+      const old = [i.place, i.county].filter(Boolean).join(', ');
+      const pref = uo && uo.county && T.has(uo.county) ? uo.county : cs[k++ % cs.length];
+      const t = townIn(pref, k); if (!t) return;
+      Object.assign(i, { place: t.place, lat: t.lat, lon: t.lon, county: pref, approx: true, unit: ORG.unitsOfCounty(pref).zaszlo || i.unit });
+      i.moved = 'Hatályon kívüli helyszín (' + (old || '–') + ') áthelyezve ide: ' + t.place + ' (' + pref + '). Ellenőrizd, hogy a szöveg nem említ más települést.'; n++;
+    })));
+    return n;
+  }
   function expandTargets(ids, withSubs) {
     const set = new Set(ids);
     if (withSubs) ids.forEach(id => { const o = ORG.get(id); if (!o) return; if (o.level === 'thp') ORG.list.forEach(x => set.add(x.id)); else if (o.level === 'ezred') ORG.list.filter(x => x.parent === id).forEach(x => set.add(x.id)); });
@@ -188,7 +221,7 @@
     $('#jgo', root).onclick = async () => {
       const to = ($('#jto', root).value || '').trim(); if (!to) { U.toast('A kiképzési célkitűzés megadása kötelező.'); return; }
       const ev = +$('#jev', root).value, sl = +$('#jsl', root).value, inj = +$('#jin', root).value, extra = ($('#jai', root).value || '').trim(), types = J.cats.join(', ') || 'Nincs megadva', ta = taNames();
-      const msg = 'JEMM GENERATOR — KÉRÉS (BI-SCD 075-003)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nKIKÉPZÉSI CÉLKITŰZÉS:\n' + to + '\n\nKIKÉPZÉSI CÉLÁLLOMÁNY (TA): ' + ta + '\n\nESEMÉNYSOR JELLEGE: ' + types + '\n\nSTRUKTÚRA:\n  - Events száma: ' + ev + '\n  - Storyline-ok / Event: ' + sl + '\n  - Inject-ek / Storyline: ' + inj + '\n\n' + (extra ? 'KIEGÉSZÍTŐ INFORMÁCIÓ:\n' + extra + '\n\n' : '') +
+      const msg = 'JEMM GENERATOR — KÉRÉS (BI-SCD 075-003)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nKIKÉPZÉSI CÉLKITŰZÉS:\n' + to + '\n\nKIKÉPZÉSI CÉLÁLLOMÁNY (TA): ' + ta + '\n\n' + terrText(J.ta) + 'ESEMÉNYSOR JELLEGE: ' + types + '\n\nSTRUKTÚRA:\n  - Events száma: ' + ev + '\n  - Storyline-ok / Event: ' + sl + '\n  - Inject-ek / Storyline: ' + inj + '\n\n' + (extra ? 'KIEGÉSZÍTŐ INFORMÁCIÓ:\n' + extra + '\n\n' : '') +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nKérem generálja le a fenti paraméterek alapján a teljes MEL/MIL struktúrát, storyline-okat és inject-eket a BI-SCD 075-003 direktíva szellemében. A generált tartalom legyen szorosan igazítva a megadott kiképzési célállományhoz (TA): ' + ta + '. A tevékenységek, szerepkörök, struktúrák és felelősségek tükrözzék az adott szervezet valós feladat- és hatáskörét. Magyarul, katonai formátumban.\n\n' +
         'KIMENETI FORMÁTUM (kötelező): kizárólag egyetlen érvényes JSON objektumot adj vissza, magyarázó szöveg és markdown nélkül, pontosan ezzel a szerkezettel:\n{"Exercise":{"Name":"…","TrainingObjective":"…"},"Events":[{"Code":"E1","Title":"…","Description":"…","Storylines":[{"Code":"E1-S1","Title":"…","Description":"…","Injects":[{"Code":"E1-S1-I1","Title":"…","Timing":"STARTEX+02:00","Sender":"HICON","Recipient":"…","Means":"Chat/Radio/Intel Report…","Description":"…","ExpectedAction":"…","Severity":"alacsony|közepes|magas|kritikus","Location":{"Name":"valós magyarországi település vagy objektum","County":"vármegye","Lat":47.1234,"Lon":19.1234},"ResponsibleUnit":"területvédelmi ezred vagy zászlóalj"}]}]}]}\nMinden Inject-hez kötelező a valós magyarországi Location (település/objektum, vármegye, WGS84 koordináta). A ResponsibleUnit a helyszín szerint illetékes területvédelmi zászlóalj/ezred legyen.';
       J.busy = true; J.err = null; drawPlan();
@@ -201,8 +234,9 @@
         const parsed = typeof result === 'object' ? result : extractJSON(result);
         const plan = parsed && normalizePlan(parsed, { name: S.cfg.name, to, ta: J.ta.slice(), cats: J.cats.slice(), generated: new Date().toISOString() });
         if (!plan) { J.raw = String(result); throw new Error('A JEMM kimenete nem értelmezhető Event/Storyline/Inject struktúraként. A nyers kimenet lent látható.'); }
+        const moved = enforceTerritory(plan, J.ta);
         plan.meta = { to, ta: J.ta.slice(), cats: J.cats.slice(), generated: new Date().toISOString() };
-        J.raw = null; await LWP.setCfg('jemm', plan); U.toast('A terv elkészült és mentésre került.');
+        J.raw = null; await LWP.setCfg('jemm', plan); U.toast('A terv elkészült és mentésre került.' + (moved ? ' ' + moved + ' inject helyszíne a hatályos területre lett igazítva.' : ''));
       } catch (e) { J.err = e.name === 'AbortError' ? 'Időtúllépés (15 perc).' : (e.message || String(e)); }
       J.busy = false; sig = ''; drawPlan();
     };
@@ -217,7 +251,7 @@
       return `<div class="jinj" data-k="${key}" data-i="${inj.id}"><div class="jinj-h"><span class="ip-code" style="background:${window.TDWMap.sev(inj.severity).c}">${esc(inj.code)}</span><b>${esc(inj.title)}</b>${inj.played.length ? `<span class="badge ok">bejátszva ×${inj.played.length}</span>` : ''}${inj.timing ? `<span class="muted">⏱ ${esc(inj.timing)}</span>` : ''}</div>
         <div class="jinj-m muted">${inj.sender ? 'Küldő: ' + esc(inj.sender) + ' · ' : ''}${inj.recipient ? 'Címzett: ' + esc(inj.recipient) + ' · ' : ''}${inj.means ? 'Csatorna: ' + esc(inj.means) : ''}</div>
         <div class="sx">${toHtml(inj.desc)}</div>${inj.expected ? `<details class="jx"><summary>Elvárt tevékenység (csak vezetőknek)</summary><div class="sx">${toHtml(inj.expected)}</div></details>` : ''}
-        <div class="jinj-loc"><span class="${loc ? '' : 'err'}">📍 ${loc ? esc((inj.place || '–') + (inj.county ? ' (' + inj.county + ')' : '')) + ' · ' + inj.lat.toFixed(3) + ', ' + inj.lon.toFixed(3) + (inj.approx ? ' ⚠ közelítő' : '') : '⚠ nincs helyszín'}</span><button class="btn sm" data-act="pick">${loc ? 'Áthelyezés' : 'Kijelölés a térképen'}</button>
+        ${inj.moved ? `<div class="jinj-warn">⚠ ${esc(inj.moved)}</div>` : ''}<div class="jinj-loc"><span class="${loc ? '' : 'err'}">📍 ${loc ? esc((inj.place || '–') + (inj.county ? ' (' + inj.county + ')' : '')) + ' · ' + inj.lat.toFixed(3) + ', ' + inj.lon.toFixed(3) + (inj.approx ? ' ⚠ közelítő' : '') : '⚠ nincs helyszín'}</span><button class="btn sm" data-act="pick">${loc ? 'Áthelyezés' : 'Kijelölés a térképen'}</button>
           <label>Súlyosság <select data-f="severity">${SEVS.map(s => `<option${s === inj.severity ? ' selected' : ''}>${s}</option>`).join('')}</select></label><label>Felelős <select data-f="unit">${unitOpts(inj.unit)}</select></label></div>
         <div class="jinj-p"><label>Címzett <select data-f="tmode"><option value="all">Mindenki (COP + minden szervezeti elem)</option><option value="sel">Kiválasztott szervezeti elemek…</option><option value="resp">Csak a felelős szervezeti elem</option></select></label><span class="tsel" hidden></span>
           <label class="chk"><input type="checkbox" data-f="subs" checked> alárendeltekkel</label><label class="chk"><input type="checkbox" data-f="cop" checked> a COP-on is</label><label class="chk"><input type="checkbox" data-f="exp"> elvárt tev. is</label><label class="chk alm"><input type="checkbox" data-f="alm"> 🚨 kiemelt</label>
@@ -260,6 +294,7 @@
         let targets = 'all';
         if (mode === 'sel') { const ms = card.querySelector('.tsel')._ms; const ids = ms ? ms.get() : []; if (!ids.length) { U.toast('Válassz legalább egy szervezeti elemet.'); return; } targets = expandTargets(ids, q('subs').checked); }
         if (mode === 'resp') { if (!inj.unit) { U.toast('Nincs felelős szervezeti elem megadva.'); return; } targets = expandTargets([inj.unit], q('subs').checked); }
+        { const T = targets === 'all' ? null : territory(targets); if (T && !inTerr(T, inj.county)) { U.toast('Területi hatály: a helyszín (' + (inj.place || '–') + ', ' + (inj.county || 'ismeretlen vármegye') + ') kívül esik a címzettek illetékességi területén. Módosítsd a helyszínt vagy a címzetteket.'); return; } }
         const label = targets === 'all' ? 'MINDENKI' : targets.map(t => (ORG.get(t) || { short: t }).short).join(', ');
         if (!confirm(`Bejátszod: ${inj.code} – ${inj.title}\nCímzett: ${label}`)) return;
         btn.disabled = true;
@@ -294,5 +329,5 @@
     };
   }
 
-  window.TDWJEMM = { leadJemm, playIncident, manualIncident, MultiSel, expandTargets };
+  window.TDWJEMM = { _enforce: enforceTerritory, _terr: terrText, leadJemm, playIncident, manualIncident, MultiSel, expandTargets };
 })();

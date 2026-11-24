@@ -497,3 +497,13 @@ body.fs-open{overflow:hidden}
 .ip-rt{font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);margin-bottom:3px}
 .ip-rep{background:rgba(255,255,255,.65);border-left:3px solid var(--c,#918867);border-radius:6px;padding:3px 7px;margin-bottom:3px;font-size:.7rem}
 .ip-rep .ip-mh{display:flex;gap:8px;align-items:baseline;margin:0;font-size:.66rem}.ip-rep .ip-mh time{color:var(--mut)}
+
+.jinj-warn{background:rgba(164,59,38,.12);border-left:3px solid #a43b26;color:#7a1f12;font-size:.74rem;padding:4px 8px;border-radius:6px;margin:4px 0}
+/* v0.2.5 – JCHAT teljes képernyő: világos háttér, jó kontraszt */
+.chat.fs{background:#efe9d3!important;color:#262a3d;backdrop-filter:none}
+.chat.fs .chat-h{background:#262a3d;color:#e4dfca;border-bottom:0}.chat.fs .chat-h span{display:inline;color:#c9c3a8}
+.chat.fs #feed{padding:14px max(16px,calc((100vw - 900px)/2))}
+.chat.fs .fs-btn{background:#262a3d;color:#e4dfca}
+
+/* teljes képernyős módban a lebegő elemek a panel fölé kerüljenek */
+.ippop2{z-index:3500!important}.modal{z-index:3600!important}.lightbox{z-index:3700!important}#toast{z-index:3800!important}
