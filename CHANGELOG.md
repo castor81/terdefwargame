@@ -1,4 +1,7 @@
 # Változásnapló
+## v0.1.2 – 2026-11-24
+- Mobilbarát csoportfelület: kompakt fejléc, négyoszlopos ikonos fülsor, áttekinthetőbb (rövidített) hírfolyam a COP és a gyakorlatvezetői csatornán, kompakt üzenetíró.
+
 ## v0.1.1 – 2026-11-24
 - Javítva: a JEMM többszörös választó legördülői (megnyitás, kiválasztás, saját elem hozzáadása).
 - Javítva: az `anon` szerepkör jogosultságai a `tdw_*` táblákon (kapcsolódási hiba az éles oldalon).

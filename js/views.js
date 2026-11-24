@@ -454,14 +454,14 @@
           return;
         }
         if (G.tab === 'dm' && !G.other) { $('#f').innerHTML = '<div class="empty">Válassz egy csoportot a bal oldali listából.</div>'; feed = null; return; }
-        feed = U.Feed($('#f'), { channel: c, actor: gid, collapse: c === 'cop', canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
+        feed = U.Feed($('#f'), { channel: c, actor: gid, collapse: c === 'cop' || c === 'lead:' + gid, canDel: m => m.author_type === 'group' && m.author_id === gid, emptyText: G.tab === 'cop' ? 'A COP-on még nincs közlés.' : 'Még nincs üzenet. Írj elsőként!' });
         U.Composer($('#c'), { placeholder: G.tab === 'cop' ? 'Közlés a COP-ra (mindenki látja)…' : G.tab === 'lead' ? 'Üzenet a gyakorlatvezetőnek…' : 'Üzenet a másik csoportnak…', incidents: () => S.incidents.filter(vis), onSend: async ({ body, file, incident }) => { await post({ channel: c, type: 'group', id: gid, html: body, file, incident }); feed.forceBottom(); beat(); } });
       }
       function sync() {
         const g = me(), s = LWP.status(g), c = chan();
-        $('#gh').innerHTML = `<span class="ava" style="--c:${BR[g.branch].color}">${ORG.avatar(g.id)}</span><div><h2>${esc(g.name)}</h2><span class="muted">${esc(BR[g.branch].name)} · ${esc(S.cfg.name)}</span></div><div class="gha"><button class="btn${g.help ? ' warn' : ''}" id="hp">${g.help ? '🆘 Segítséget kértél – visszavonás' : '🆘 Segítséget kérek'}</button><span class="st">${dot(s.key)}</span></div>`;
+        $('#gh').innerHTML = `<span class="ava" style="--c:${BR[g.branch].color}">${ORG.avatar(g.id)}</span><div class="gtitle"><h2>${esc(g.name)}</h2><span class="muted">${esc(BR[g.branch].name)} · ${esc(S.cfg.name)}</span></div><div class="gha"><button class="btn${g.help ? ' warn' : ''}" id="hp"><span>🆘</span><span class="lg"> ${g.help ? 'Segítséget kértél – visszavonás' : 'Segítséget kérek'}</span></button><span class="st">${dot(s.key)}</span></div>`;
         $('#hp').onclick = () => { if (!g.help && !confirm('Jelzed a gyakorlatvezetőnek és a COP-nak, hogy segítséget kér a csoport?')) return; LWP.setHelp(gid, !g.help); };
-        const t = (k, l, n) => `<button data-t="${k}" class="${G.tab === k ? 'on' : ''}">${l}${n ? `<em>${n}</em>` : ''}</button>`;
+        const t = (k, l, n) => { const i = l.indexOf(' '); return `<button data-t="${k}" class="${G.tab === k ? 'on' : ''}"><i>${l.slice(0, i)}</i><span>${l.slice(i + 1)}</span>${n ? `<em>${n}</em>` : ''}</button>`; };
         const dmUn = S.groups.filter(x => x.id !== gid).reduce((a, x) => a + unread('dm:' + [gid, x.id].sort().join('~')), 0);
         $('#gt').innerHTML = t('cop', '🖥 COP', G.tab === 'cop' ? 0 : unread('cop')) + t('map', '🗺 Térkép', 0) + t('lead', '🎛 Gyakorlatvezető', G.tab === 'lead' ? 0 : unread('lead:' + gid)) + t('dm', '👥 Csoportok', G.tab === 'dm' ? 0 : dmUn);
         $('#gs').hidden = G.tab !== 'dm';
