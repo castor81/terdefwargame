@@ -56,7 +56,7 @@
     const idsOf = new Map(); raw.forEach(m => { const k = m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || ''); (idsOf.get(k) || idsOf.set(k, new Set()).get(k)).add(m.id); });
     const replyIds = new Set(), all = S.msgs.filter(m => !m.deleted && (!o.msgFilter || o.msgFilter(m) || m.incident === inc.id));
     const repsOf = k => { const ids = idsOf.get(k) || new Set(), seenR = new Set(); return all.filter(r => r.reply_to && ids.has(r.reply_to)).filter(r => { const kk = r.author_type + '|' + r.author_id + '|' + (r.body || ''); if (seenR.has(kk)) return false; seenR.add(kk); return true; }); };
-    const medOf = m => { const mt = U.mediaType(m); return mt === 'image' ? `<img class="pm" src="${esc(m.media_url)}" alt="" data-zoom>` : mt ? `<a href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'melléklet')}</a>` : ''; };
+    const medOf = m => { const mt = U.mediaType(m); return mt === 'image' ? `<img class="pm" src="${esc(U.safeUrl(m.media_url))}" alt="" data-zoom>` : mt ? `<a href="${esc(U.safeUrl(m.media_url))}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'melléklet')}</a>` : ''; };
     const cut = (t, n) => t.length > n ? t.slice(0, n - 2).replace(/\s+\S*$/, '') + '…' : t;
     const keyOf = m => m.author_type + '|' + m.author_id + '|' + m.kind + '|' + (m.body || '');
     const reps = new Map(msgs.map(x => [x.m.id, repsOf(keyOf(x.m))])); reps.forEach(rs => rs.forEach(r => replyIds.add(r.id)));

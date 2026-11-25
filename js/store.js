@@ -5,7 +5,7 @@
   const BR = window.ORG.sections;
   const S = {
     groups: [], msgs: [], reacts: [], events: [], incidents: [], reads: [],
-    cfg: { name: 'TERDEF gyakorlat', yellow: 5, red: 15, pin: CFG.leadPinSha256 || '' },
+    cfg: { name: 'TERDEF gyakorlat', yellow: 5, red: 15, openLogin: true },
     ready: false, mode: 'local', error: null
   };
   const subs = new Set();
@@ -52,7 +52,7 @@
   }
   function applyCfg(key, v) {
     if (key === 'exercise') { S.cfg.name = v.name || S.cfg.name; S.cfg.yellow = +v.yellow_min || 5; S.cfg.red = +v.red_min || 15; }
-    if (key === 'lead_pin_sha256') S.cfg.pin = v;
+    if (key === 'open_unit_login') S.cfg.openLogin = !!v;
     if (key === 'scenario') S.cfg.scenario = v;
     if (key === 'jemm') S.cfg.jemm = v;
     emit();
@@ -65,82 +65,92 @@
   }
   function addEvent(r) { if (!S.events.some(x => x.id === r.id)) S.events.push(r); emit(); }
 
-  /* ---------- Supabase háttér ---------- */
+  /* ---------- Supabase háttér: minden hozzáférés szerepkör-alapú, szerveroldalon ellenőrzött RPC-n át ---------- */
+  const ERR = { bad_code: 'Hibás belépési kód.', too_many_attempts: 'Túl sok sikertelen próbálkozás – várj néhány percet.', code_required: 'Ehhez a szervezeti elemhez belépési kód szükséges (lásd a QR-lapot).', forbidden: 'Nincs jogosultságod ehhez a művelethez.', unauthorized: 'A munkamenet lejárt – lépj be újra.', code_too_short: 'A kód túl rövid.', bad_emoji: 'Ez a reakció nem engedélyezett.', bad_media: 'Érvénytelen melléklet.', too_long: 'A tartalom túl hosszú.', type_not_allowed: 'Ez a fájltípus nem tölthető fel (kép, videó, hang, PDF engedélyezett).', too_large: 'A fájl túl nagy (legfeljebb 10 MB).' };
+  const mapErr = e => { const m = String((e && e.message) || e || ''); const k = Object.keys(ERR).find(x => m.includes(x)); const o = new Error(k ? ERR[k] : m); o.code = k || (e && e.code); return o; };
   function sbBackend() {
     const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    async function all(table, order) {
-      let out = [], from = 0;
-      for (;;) {
-        const { data, error } = await sb.from(table).select('*').order(order, { ascending: true }).range(from, from + 999);
-        if (error) throw error;
-        out = out.concat(data);
-        if (data.length < 1000) break;
-        from += 1000;
-      }
-      return out;
+    let sess = null, since = 0, evMax = 0, timer = null, busy = false, lastFull = 0, ready = null;
+    const lostCbs = new Set();
+    const resetState = () => { S.groups = []; S.msgs = []; S.reacts = []; S.events = []; S.incidents = []; S.reads = []; S.cfg = { name: 'TERDEF gyakorlat', yellow: 5, red: 15 }; since = 0; evMax = 0; };
+    function lost() { if (!sess) return; const r = sess.role; sess = null; clearInterval(timer); timer = null; try { localStorage.removeItem('tdw-sess-' + r); } catch (_) { } resetState(); lostCbs.forEach(f => { try { f(r); } catch (_) { } }); emit(); }
+    async function rpc(name, args) {
+      const { data, error } = await sb.rpc(name, args);
+      if (error) { if (error.code === '28000' || /unauthorized/.test(error.message || '')) lost(); throw mapErr(error); }
+      return data;
     }
+    const S_ = () => ({ p_s: sess && sess.t });
+    function apply(d, full) {
+      if (full) { resetState(); }
+      S.groups = (d.groups || []).map(normG);
+      (d.msgs || []).forEach(m => { if (full) S.msgs.push(m); else upsertMsg(m); });
+      if (full) S.msgs.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+      (d.reacts || []).forEach(r => { if (r.removed) delReact(r); else addReact(r); });
+      (d.reads || []).forEach(upsertRead);
+      (d.incidents || []).forEach(i => { if (i.deleted) { S.incidents = S.incidents.filter(x => x.id !== i.id); } else upsertInc(i); });
+      if (d.cfg) Object.keys(d.cfg).forEach(k => applyCfg(k, d.cfg[k]));
+      (d.events || []).forEach(e => { addEvent(e); if (e.id > evMax) evMax = e.id; });
+      if (typeof d.rev === 'number') since = d.rev;
+      S.ready = true; emit();
+    }
+    // a lekérdezés kis átfedéssel fut, hogy a még le nem zárt tranzakciók változásai se vesszenek el
+    async function refresh(full) {
+      if (!sess || busy) return; busy = true;
+      try {
+        if (!full && Date.now() - lastFull > 300000) full = true; // 5 percenként teljes újraszinkron (a kiesett/hibás ciklusok ellen is)
+        const d = await rpc('tdw_state', { p_s: sess.t, p_since: full ? 0 : Math.max(1, since - 300), p_ev: full ? 0 : evMax });
+        if (full) lastFull = Date.now();
+        if (sess && d.role === sess.role) apply(d, full);
+        S.error = null;
+      } catch (e) { if (full) throw e; /* hálózati hiba: a következő ciklus újrapróbálja */ }
+      finally { busy = false; }
+    }
+    let n = 0; const tick = () => { n++; if (!document.hidden || n % 4 === 0) refresh(false); };
     return {
       name: 'supabase',
-      async load() {
-        const [g, m, r, c, e, inc, rd] = await Promise.all([all('tdw_groups', 'id'), all('tdw_messages', 'created_at'), all('tdw_reactions', 'created_at'), all('tdw_config', 'key'), all('tdw_events', 'id'), all('tdw_incidents', 'seq'), all('tdw_reads', 'seen_at')]);
-        S.groups = g.map(normG); S.msgs = m; S.reacts = r; S.events = e; S.incidents = inc.filter(x => !x.deleted); S.reads = rd;
-        c.forEach(x => applyCfg(x.key, x.value));
-        const ch = sb.channel('tdw-live');
-        const on = (table, fn) => ch.on('postgres_changes', { event: '*', schema: 'public', table }, fn);
-        on('tdw_messages', p => { if (p.new && p.new.id) upsertMsg(p.new); });
-        on('tdw_reactions', p => { if (p.eventType === 'DELETE') delReact(p.old); else addReact(p.new); });
-        on('tdw_reads', p => { if (p.new && p.new.message_id) upsertRead(p.new); });
-        on('tdw_groups', p => { if (p.new && p.new.id) upsertGroup(p.new); });
-        on('tdw_config', p => { if (p.new && p.new.key) applyCfg(p.new.key, p.new.value); });
-        on('tdw_events', p => { if (p.new && p.new.id) addEvent(p.new); });
-        on('tdw_incidents', p => { if (p.new && p.new.id) { if (p.new.deleted) { S.incidents = S.incidents.filter(x => x.id !== p.new.id); emit(); } else upsertInc(p.new); } });
-        ch.subscribe();
-        // védőháló: ha a realtime-kapcsolat kiesne, 20 mp-enként teljes újratöltés a friss üzenetekre
-        setInterval(async () => {
-          try {
-            const last = S.msgs.length ? S.msgs[S.msgs.length - 1].created_at : '1970-01-01';
-            const { data } = await sb.from('tdw_messages').select('*').gt('created_at', last).order('created_at');
-            (data || []).forEach(upsertMsg);
-            const { data: gs } = await sb.from('tdw_groups').select('*');
-            (gs || []).forEach(upsertGroup);
-            { const { data: rr } = await sb.from('tdw_reads').select('*'); if (rr) { S.reads = rr; emit(); } }
-            const { data: ic } = await sb.from('tdw_incidents').select('*').order('seq'); if (ic) { S.incidents = ic.filter(x => !x.deleted); emit(); }
-          } catch (_) { /* hálózati hiba: a következő ciklus újrapróbálja */ }
-        }, 20000);
+      onLost(f) { lostCbs.add(f); },
+      async load() { /* adatot csak érvényes munkamenettel töltünk */ },
+      async use(s) {
+        if (sess && sess.t === s.t) return ready;
+        clearInterval(timer); sess = s; resetState();
+        ready = (async () => { try { await refresh(true); } catch (e) { sess = null; throw e; } if (!sess) return false; timer = setInterval(tick, 3000); return true; })();
+        return ready;
       },
-      async send(m) {
-        const { data, error } = await sb.from('tdw_messages').insert(m).select().single();
-        if (error) throw error;
-        upsertMsg(data);
-        return data;
-      },
+      async loginLead(code) { const d = await rpc('tdw_login_lead', { p_code: code }); return { t: d.session, role: 'lead' }; },
+      async loginCop(code) { const d = await rpc('tdw_login_cop', { p_code: code }); return { t: d.session, role: 'cop' }; },
+      async loginGroup(a) { const d = await rpc('tdw_login_group', { p_token: a.token || null, p_group: a.group || null }); return { t: d.session, role: 'group', gid: d.group_id }; },
+      async logout(s) { try { await sb.rpc('tdw_logout', { p_s: s.t }); } catch (_) { } if (sess && sess.t === s.t) { sess = null; clearInterval(timer); timer = null; resetState(); emit(); } },
+      async send(m) { const data = await rpc('tdw_send', { p_s: sess.t, p: m }); upsertMsg(data); return data; },
       async upload(file) {
-        const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin';
-        const path = (CFG.mediaPrefix || '') + new Date().toISOString().slice(0, 10) + '/' + uuid() + '.' + ext;
-        const { error } = await sb.storage.from(CFG.bucket).upload(path, file, { contentType: file.type || undefined, upsert: false });
-        if (error) throw error;
-        return { url: sb.storage.from(CFG.bucket).getPublicUrl(path).data.publicUrl, name: file.name };
+        const r = await fetch(CFG.supabaseUrl + '/functions/v1/tdw-media', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-tdw-session': sess.t, 'x-file-name': encodeURIComponent(file.name || 'fajl') }, body: file });
+        let j = {}; try { j = await r.json(); } catch (_) { }
+        if (!r.ok || !j.url) throw mapErr(new Error(j.error || ('HTTP ' + r.status)));
+        return { url: j.url, name: j.name || file.name };
       },
       async react(message_id, actor, emoji, on) {
-        const row = { message_id, actor, emoji };
-        if (on) { addReact(row); const { error } = await sb.from('tdw_reactions').insert(row); if (error && error.code !== '23505') { delReact(row); throw error; } }
-        else { delReact(row); const { error } = await sb.from('tdw_reactions').delete().match(row); if (error) throw error; }
+        const row = { message_id, actor, emoji, created_at: new Date().toISOString() };
+        if (on) addReact(row); else delReact(row);
+        try { await rpc('tdw_react', { p_s: sess.t, p_mid: message_id, p_emoji: emoji, p_on: on }); } catch (e) { if (on) delReact(row); else addReact(row); throw e; }
       },
       async markRead(message_id, group_id, opened) {
         const now = new Date().toISOString(), ex = S.reads.find(x => x.message_id === message_id && x.group_id === group_id);
         if (ex && (!opened || ex.opened_at)) return;
         upsertRead({ message_id, group_id, seen_at: now, opened_at: opened ? now : null });
-        if (!ex) { const { error } = await sb.from('tdw_reads').upsert({ message_id, group_id, seen_at: now, opened_at: opened ? now : null }, { onConflict: 'message_id,group_id', ignoreDuplicates: true }); if (error) { console.warn(error); return; } }
-        else if (opened) { const { error } = await sb.from('tdw_reads').update({ opened_at: now }).eq('message_id', message_id).eq('group_id', group_id).is('opened_at', null); if (error) console.warn(error); }
-        if (!ex && opened) await sb.from('tdw_reads').update({ opened_at: now }).eq('message_id', message_id).eq('group_id', group_id).is('opened_at', null);
+        try { await rpc('tdw_mark_read', { p_s: sess.t, p_mid: message_id, p_opened: !!opened }); } catch (e) { console.warn(e); }
       },
-      async patchGroup(id, patch) { upsertGroup(Object.assign({ id }, patch)); const { error } = await sb.from('tdw_groups').update(patch).eq('id', id); if (error) throw error; },
-      async patchMsg(id, patch) { upsertMsg(Object.assign({ id }, patch)); const { error } = await sb.from('tdw_messages').update(patch).eq('id', id); if (error) throw error; },
-      async logEvent(group_id, type, data) { const { error } = await sb.from('tdw_events').insert({ group_id, type, data: data || null }); if (error) console.warn(error); },
-      async setCfg(key, value) { const { error } = await sb.from('tdw_config').upsert({ key, value }); if (error) throw error; applyCfg(key, value); },
-      async addIncident(r) { const { data, error } = await sb.from('tdw_incidents').insert(r).select().single(); if (error) throw error; upsertInc(data); return data; },
-      async patchIncident(id, patch) { const { error } = await sb.from('tdw_incidents').update(patch).eq('id', id); if (error) throw error; if (patch.deleted) { S.incidents = S.incidents.filter(x => x.id !== id); emit(); } else upsertInc(Object.assign({ id }, patch)); },
-      async reloadEvents() { S.events = await all('tdw_events', 'id'); emit(); }
+      async beat() { await rpc('tdw_beat', S_()); },
+      async loginEvent() { /* a belépést a szerver naplózza */ },
+      async setHelp(gid, v) { upsertGroup({ id: gid, help: v }); await rpc('tdw_set_help', { p_s: sess.t, p_v: v }); },
+      async patchMsg(id, patch) { upsertMsg(Object.assign({ id }, patch)); await rpc('tdw_patch_msg', { p_s: sess.t, p_id: id, p_patch: patch }); },
+      async logEvent(group_id, type, data) { try { await rpc('tdw_log_event', { p_s: sess.t, p_type: type, p_data: data || null }); } catch (e) { console.warn(e); } },
+      async setCfg(key, value) { await rpc('tdw_set_cfg', { p_s: sess.t, p_key: key, p_value: value }); applyCfg(key, value); },
+      async setCodes(lead, cop) { await rpc('tdw_set_codes', { p_s: sess.t, p_lead: lead || null, p_cop: cop || null }); },
+      async setOpenLogin(v) { await rpc('tdw_set_open_login', { p_s: sess.t, p_v: !!v }); S.cfg.openLogin = !!v; emit(); },
+      async regenCodes() { await rpc('tdw_regen_codes', S_()); await refresh(true); },
+      async jemmTicket() { return rpc('tdw_jemm_ticket', S_()); },
+      async addIncident(r) { const data = await rpc('tdw_add_incident', { p_s: sess.t, p: r }); upsertInc(data); return data; },
+      async patchIncident(id, patch) { await rpc('tdw_patch_incident', { p_s: sess.t, p_id: id, p_patch: patch }); if (patch.deleted) { S.incidents = S.incidents.filter(x => x.id !== id); emit(); } else upsertInc(Object.assign({ id }, patch)); },
+      async reloadEvents() { await refresh(true); }
     };
   }
 
@@ -162,10 +172,24 @@
     }
     return {
       name: 'local',
+      onLost() { },
+      async use() { return true; },
+      async loginLead() { return { t: 'local-lead', role: 'lead' }; },
+      async loginCop() { return { t: 'local-cop', role: 'cop' }; },
+      async loginGroup(a) { const g = S.groups.find(x => (a.token && x.token === a.token) || (a.group && x.id === a.group)); if (!g) throw new Error('Hibás belépési kód.'); return { t: 'local-' + g.id, role: 'group', gid: g.id }; },
+      async logout() { },
+      async beat(gid) {
+        const g = S.groups.find(x => x.id === gid); if (!g) return;
+        const now = Date.now(), prev = g.last_seen ? new Date(g.last_seen).getTime() : 0, gap = (now - prev) / 1000, add = prev && gap <= 90 ? Math.round(gap) : 0;
+        mutate(d => { const x = d.groups.find(y => y.id === gid); Object.assign(x, { last_seen: new Date(now).toISOString(), active_sec: (x.active_sec || 0) + add }); });
+      },
+      async loginEvent(gid) { mutate(d => { const x = d.groups.find(y => y.id === gid); Object.assign(x, { last_login: new Date().toISOString(), last_seen: new Date().toISOString() }); d.events.push({ id: Date.now() + Math.random(), ts: new Date().toISOString(), group_id: gid, type: 'login', data: null }); }); },
+      async setHelp(gid, v) { mutate(d => { Object.assign(d.groups.find(y => y.id === gid), { help: v }); if (v) d.events.push({ id: Date.now() + Math.random(), ts: new Date().toISOString(), group_id: gid, type: 'help', data: null }); }); },
+      async setCodes() { }, async setOpenLogin(v) { S.cfg.openLogin = !!v; emit(); }, async regenCodes() { }, async jemmTicket() { return 'local'; },
       async load() {
         if (!read()) {
           const groups = window.ORG.list.map(o => ({ id: o.id, branch: o.section, letter: o.short, name: o.name, token: 'tdw-' + o.id, last_seen: null, last_login: null, active_sec: 0, help: false, created_at: new Date().toISOString() }));
-          localStorage.setItem(LK, JSON.stringify({ groups, msgs: [], reacts: [], events: [], incidents: [], cfg: { exercise: { name: 'TERDEF gyakorlat – helyi demó', yellow_min: 5, red_min: 15 }, lead_pin_sha256: CFG.leadPinSha256 } }));
+          localStorage.setItem(LK, JSON.stringify({ groups, msgs: [], reacts: [], events: [], incidents: [], cfg: { exercise: { name: 'TERDEF gyakorlat – helyi demó', yellow_min: 5, red_min: 15 } } }));
         }
         pull();
         if (bc) bc.onmessage = () => { pull(); emit(); };
@@ -227,7 +251,6 @@
     mode: () => S.mode,
     touch: () => emit(),
     group: id => S.groups.find(g => g.id === id),
-    groupByToken: t => S.groups.find(g => g.token === t),
     status(g) {
       if (!g || !g.last_seen) return { key: 'off', min: null };
       const min = (Date.now() - new Date(g.last_seen).getTime()) / 60000;
@@ -239,23 +262,33 @@
       const on = !S.reacts.some(r => r.message_id === mid && r.actor === actor && r.emoji === emoji);
       return B.react(mid, actor, emoji, on);
     },
-    async beat(gid) {
-      const g = API.group(gid); if (!g) return;
-      const now = Date.now(), prev = g.last_seen ? new Date(g.last_seen).getTime() : 0;
-      const gap = (now - prev) / 1000;
-      const add = prev && gap <= 90 ? Math.round(gap) : 0;
-      return B.patchGroup(gid, { last_seen: new Date(now).toISOString(), active_sec: (g.active_sec || 0) + add });
-    },
-    async login(gid) {
-      await B.patchGroup(gid, { last_login: new Date().toISOString(), last_seen: new Date().toISOString() });
-      return B.logEvent(gid, 'login');
-    },
-    async setHelp(gid, v) { await B.patchGroup(gid, { help: v }); if (v) await B.logEvent(gid, 'help'); },
+    async beat(gid) { return B.beat(gid); },
+    async groupLogged(gid) { return B.loginEvent(gid); },
+    async setHelp(gid, v) { return B.setHelp(gid, v); },
     patchMsg: (id, p) => B.patchMsg(id, p),
     logEvent: (g, t, d) => B.logEvent(g, t, d),
     markRead: (m, g, o) => B.markRead(m, g, o),
     setCfg: (k, v) => B.setCfg(k, v),
-    reloadEvents: () => B.reloadEvents()
+    reloadEvents: () => B.reloadEvents(),
+    setCodes: (l, c) => B.setCodes(l, c), setOpenLogin: v => B.setOpenLogin(v), regenCodes: () => B.regenCodes(), jemmTicket: () => B.jemmTicket(),
+    /* ---------- munkamenet-kezelés (a jogosultságot mindig a szerver ellenőrzi) ---------- */
+    role: null, gid: null,
+    onAuthLost(f) { B.onLost(f); },
+    stored(role) { try { return JSON.parse(localStorage.getItem('tdw-sess-' + role)); } catch (_) { return null; } },
+    async activate(want) {
+      const order = want === 'copview' ? ['lead', 'cop'] : [want];
+      for (const r of order) {
+        const sess = API.stored(r) || (S.mode === 'local' ? { t: 'local-' + r, role: r } : null); if (!sess) continue;
+        try { if (await B.use(sess)) { API.role = sess.role; API.gid = sess.gid || null; return true; } } catch (e) { S.error = e.message || String(e); return false; }
+      }
+      API.role = null; API.gid = null; return false;
+    },
+    async signIn(kind, arg) {
+      const sess = kind === 'lead' ? await B.loginLead(arg) : kind === 'cop' ? await B.loginCop(arg) : await B.loginGroup(arg);
+      try { localStorage.setItem('tdw-sess-' + sess.role, JSON.stringify(sess)); } catch (_) { }
+      return sess;
+    },
+    async logout(role) { const s = API.stored(role); try { localStorage.removeItem('tdw-sess-' + role); } catch (_) { } if (s) await B.logout(s); if (API.role === role) { API.role = null; API.gid = null; } }
   };
   window.LWP = API;
 })();

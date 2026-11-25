@@ -81,7 +81,7 @@
       cleanup.push(LWP.on(() => { const mx = Math.max(0, ...S.incidents.map(x => x.seq || 0)); if (mx > lastSeq) { const inc = S.incidents.find(x => x.seq === mx); lastSeq = mx; if (inc && inc.show_cop !== false && follow.querySelector('input').checked && Date.now() - new Date(inc.created_at) < 30000) setTimeout(() => mapCtl.map.flyTo([inc.lat, inc.lon], Math.max(mapCtl.map.getZoom(), 8), { duration: 1.2 }), 3200); } }));
       $('.acts').insertBefore(Object.assign(document.createElement('span'), { id: 'sndh' }), $('#clock'));
       U.soundBtn($('#sndh'));
-      $('#bqr').onclick = allQr;
+      if (LWP.role === 'lead') $('#bqr').onclick = allQr; else $('#bqr').remove();
       $('#bdash').onclick = () => { location.hash = '#/cop/dashboard'; };
       $('#bfs').onclick = () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => { }); };
       $('#br').onclick = e => { const b = e.target.closest('[data-g]'); if (b) qrModal(LWP.group(b.dataset.g)); };
@@ -216,7 +216,6 @@
   const lread = ch => localStorage.getItem('tdw-lr:' + ch) || '1970';
   function viewLead() {
     mount(() => {
-      if (!sessionStorage.getItem('tdw-lead')) return leadLogin();
       const L = { tab: 'cop', gid: S.groups[0] ? S.groups[0].id : null, chan: 'lead' };
       app.innerHTML = `<div class="lead"><aside class="nav glass">${brand}<nav>
         <button data-t="cop">📣 COP-közlés</button><button data-t="map">🗺 Térkép / incidensek</button><button data-t="jemm">🎯 JEMM generátor</button><button data-t="audit">🔎 Nyomkövetés</button><button data-t="groups">👥 Szervezeti elemek</button><button data-t="script">📋 Forgatókönyv (Word)</button><button data-t="settings">⚙ Beállítások</button></nav>
@@ -227,17 +226,24 @@
       let tabSync = () => { };
       const go = t => { if (L.dispose) { L.dispose(); L.dispose = null; } L.tab = t; $$('.nav nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); tabSync = ({ cop: leadCop, map: leadMap, jemm: window.TDWJEMM.leadJemm, audit: window.TDWAudit.leadAudit, groups: leadGroups, script: leadScript, settings: leadSettings }[t])(L, $('#mn')); tabSync && tabSync(); };
       $('.nav nav').onclick = e => { const b = e.target.closest('[data-t]'); if (b) go(b.dataset.t); };
-      $('#lo').onclick = () => { sessionStorage.removeItem('tdw-lead'); location.hash = '#/'; };
+      $('#lo').onclick = async () => { await LWP.logout('lead'); location.hash = '#/'; };
       cleanup.push(LWP.on(() => tabSync && tabSync()));
       go('cop');
     });
+  }
+  function copLogin(back) {
+    app.innerHTML = `<main class="home">${brand}<form class="card glass login" id="cf"><h3>Közös operatív kép – belépés</h3><p class="muted">A COP megtekintéséhez COP-kód (vagy gyakorlatvezetői kód) szükséges.</p><input type="password" name="p" placeholder="COP-kód" autocomplete="current-password" autofocus><button class="btn pri">Megnyitás</button><p class="err" id="er"></p><a href="#/">← vissza</a></form></main>`;
+    $('#cf').onsubmit = async e => {
+      e.preventDefault(); const btn = e.target.querySelector('button'); btn.disabled = true;
+      try { await LWP.signIn('cop', e.target.p.value); route(); } catch (er) { $('#er').textContent = er.message; } finally { btn.disabled = false; }
+    };
   }
   function leadLogin() {
     app.innerHTML = `<main class="home">${brand}<form class="card glass login" id="lf"><h3>Gyakorlatvezetői belépés</h3><input type="password" name="p" placeholder="Belépési kód" autocomplete="current-password" autofocus><button class="btn pri">Belépés</button><p class="err" id="er"></p><a href="#/">← vissza</a></form></main>`;
     $('#lf').onsubmit = async e => {
       e.preventDefault();
-      const ok = (await LWP.sha256(e.target.p.value)) === S.cfg.pin;
-      if (ok) { sessionStorage.setItem('tdw-lead', '1'); viewLead(); } else { $('#er').textContent = 'Hibás belépési kód.'; }
+      const btn = e.target.querySelector('button'); btn.disabled = true;
+      try { await LWP.signIn('lead', e.target.p.value); location.hash = '#/lead'; route(); } catch (er) { $('#er').textContent = er.message; } finally { btn.disabled = false; }
     };
   }
   function leadMap(L, root) {
@@ -295,7 +301,7 @@
       const sig = L.gid + '|' + L.chan + '|' + Array.from(dms).join(',');
       if (sig !== csSig) {
         csSig = sig;
-        $('#cs').innerHTML = `<label>Csatorna <select id="chs"><option value="lead">Vezetői csatorna (írható)</option><option value="cop">A csoport közlései a COP-on</option>${Array.from(dms).map(([c, n]) => { const o = c.slice(3).split('~').find(x => x !== L.gid) || L.gid; return `<option value="${c}">Beszélgetés: ${esc((LWP.group(o) || { name: o }).name)} (${n})</option>`; }).join('')}</select></label>`;
+        $('#cs').innerHTML = `<label>Csatorna <select id="chs"><option value="lead">Vezetői csatorna (írható)</option><option value="cop">A csoport közlései a COP-on</option>${Array.from(dms).map(([c, n]) => { const o = c.slice(3).split('~').find(x => x !== L.gid) || L.gid; return `<option value="${esc(c)}">Beszélgetés: ${esc((LWP.group(o) || { name: o }).name)} (${n})</option>`; }).join('')}</select></label>`;
         $('#chs').value = L.chan;
         $('#chs').onchange = e => { L.chan = e.target.value; mountFeed(); sync(); };
       }
@@ -418,30 +424,34 @@
   function leadSettings(L, root) {
     root.innerHTML = `<div class="pane scroll"><div class="ph"><h2>Beállítások és export</h2></div>
       <form id="fs" class="fcard glass-in"><h4>Gyakorlat</h4><label>Megnevezés <input name="n" value="${esc(S.cfg.name)}"></label><label>Sárga jelzés (perc) <input name="y" type="number" min="1" value="${S.cfg.yellow}"></label><label>Piros jelzés (perc) <input name="r" type="number" min="2" value="${S.cfg.red}"></label><button class="btn pri">Mentés</button></form>
-      <form id="fp" class="fcard glass-in"><h4>Gyakorlatvezetői belépési kód módosítása</h4><label>Új kód (min. 4 karakter) <input name="p" type="password" autocomplete="new-password"></label><button class="btn">Kód módosítása</button></form>
+      <form id="fp" class="fcard glass-in"><h4>Belépési kódok (szerveroldalon ellenőrzött)</h4><label>Új gyakorlatvezetői kód (min. 8 karakter) <input name="p" type="password" autocomplete="new-password"></label><label>Új COP-kód a kivetítőhöz (min. 6 karakter) <input name="c" type="password" autocomplete="new-password"></label><button class="btn">Kódok módosítása</button><p class="muted">A kódokat a szerver titkosítva tárolja; a kliens soha nem kapja meg. Tárolt hash-ük nem olvasható ki.</p></form>
+      <form id="fo" class="fcard glass-in"><h4>Szervezeti elemek belépése</h4><label class="chk"><input type="checkbox" name="o" ${S.cfg.openLogin !== false ? 'checked' : ''}> Belépés kód nélkül is (csak a szervezeti elem kiválasztásával) – <b>zárt próbán elég, éles használatnál kapcsold ki</b></label><div class="row"><button class="btn">Mentés</button><button type="button" class="btn warn" id="rg">Új egységkódok és QR-ek generálása</button></div><p class="muted">Kikapcsolt állapotban a szervezeti elemek csak a QR-lapon lévő egyedi kóddal léphetnek be.</p></form>
       <div class="fcard glass-in"><h4>Adatexport (kiértékeléshez)</h4><div class="row"><button class="btn" id="x1">Üzenetek CSV</button><button class="btn" id="x2">Összesítő CSV</button><button class="btn" id="x3">Teljes export JSON</button></div></div>
-      <div class="fcard glass-in"><h4>Szervezeti elemek belépő hivatkozásai</h4><div class="row"><button class="btn" id="aq">Összes QR megjelenítése / nyomtatása</button></div><table class="lt">${S.groups.map(g => `<tr><td><i class="sw" style="background:${BR[g.branch].color}"></i>${esc(g.name)}</td><td><code>${esc(U.groupUrl(g))}</code></td><td><button class="btn sm" data-cp="${esc(U.groupUrl(g))}">Másol</button></td></tr>`).join('')}</table></div></div>`;
+      <div class="fcard glass-in"><h4>Szervezeti elemek belépő hivatkozásai</h4><div class="row"><button class="btn" id="aq">Összes QR megjelenítése / nyomtatása</button></div><table class="lt">${S.groups.map(g => `<tr><td><i class="sw" style="background:${BR[g.branch].color}"></i>${esc(g.name)}</td><td><b>${esc(g.token || '')}</b></td><td><code>${esc(U.groupUrl(g))}</code></td><td><button class="btn sm" data-cp="${esc(U.groupUrl(g))}">Másol</button></td></tr>`).join('')}</table></div></div>`;
     $('#fs').onsubmit = async e => { e.preventDefault(); const f = e.target; try { await LWP.setCfg('exercise', { name: f.n.value.trim() || 'Gyakorlat', yellow_min: +f.y.value || 5, red_min: Math.max(+f.r.value || 15, (+f.y.value || 5) + 1) }); U.toast('Mentve.'); } catch (er) { U.toast(er.message); } };
-    $('#fp').onsubmit = async e => { e.preventDefault(); const p = e.target.p.value; if (p.length < 4) return U.toast('A PIN legalább 4 karakter legyen.'); try { await LWP.setCfg('lead_pin_sha256', await LWP.sha256(p)); e.target.p.value = ''; U.toast('PIN módosítva.'); } catch (er) { U.toast(er.message); } };
+    $('#fp').onsubmit = async e => { e.preventDefault(); const l = e.target.p.value, c = e.target.c.value; if (!l && !c) return U.toast('Adj meg legalább egy új kódot.'); if (l && l.length < 8) return U.toast('A gyakorlatvezetői kód legalább 8 karakter legyen.'); if (c && c.length < 6) return U.toast('A COP-kód legalább 6 karakter legyen.'); try { await LWP.setCodes(l, c); e.target.reset(); U.toast('Kód(ok) módosítva.'); } catch (er) { U.toast(er.message); } };
+    $('#fo').onsubmit = async e => { e.preventDefault(); try { await LWP.setOpenLogin(e.target.o.checked); U.toast('Mentve.'); } catch (er) { U.toast(er.message); } };
+    $('#rg').onclick = async () => { if (!confirm('Új egységkódot kap minden szervezeti elem; a régi QR-kódok érvénytelenek lesznek. Folytatod?')) return; try { await LWP.regenCodes(); U.toast('Új kódok generálva – nyomtasd ki újra a QR-lapot.'); } catch (er) { U.toast(er.message); } };
     $('#x1').onclick = exportMessages; $('#x2').onclick = exportSummary; $('#x3').onclick = exportJSON; $('#aq').onclick = allQr;
     root.onclick = e => { const c = e.target.closest('[data-cp]'); if (c) navigator.clipboard.writeText(c.dataset.cp).then(() => U.toast('Hivatkozás másolva.'), () => U.toast('A másolás nem sikerült.')); };
     return null;
   }
 
   /* ---------- csoportfelület ---------- */
-  function viewGroup(token) {
+  function groupLogin(msg) {
+    app.innerHTML = `<main class="home">${brand}<form class="card glass login" id="tk"><h3>Csoport belépése</h3><p class="muted">${esc(msg || 'Add meg a QR-lapon lévő egységkódot, vagy olvasd be a QR-kódot. Kód nélkül a belépő oldalon a szervezeti elem kiválasztásával léphetsz be (ha a gyakorlatvezető engedélyezte).')}</p><input name="t" placeholder="egységkód" autocomplete="off"><button class="btn pri">Belépés</button><a href="#/">← belépő oldal</a></form></main>`;
+    $('#tk').onsubmit = e => { e.preventDefault(); location.hash = '#/g/' + encodeURIComponent(e.target.t.value.trim()); };
+  }
+  async function viewGroup(token, my) {
+    if (token) {
+      try { await LWP.signIn('group', { token: decodeURIComponent(token) }); if (my !== routing) return; history.replaceState(null, '', location.pathname + location.search + '#/g'); }
+      catch (er) { if (my === routing) mount(() => groupLogin(er.message)); return; }
+    }
+    const ok = await LWP.activate('group'); if (my !== routing) return;
+    if (!ok) { mount(() => groupLogin()); return; }
     mount(() => {
-      token = token || localStorage.getItem('tdw-group-token');
-      const g0 = token && LWP.groupByToken(token);
-      if (!g0) {
-        app.innerHTML = `<main class="home">${brand}<form class="card glass login" id="tk"><h3>Csoport belépése</h3><p class="muted">A hivatkozás vagy a kód érvénytelen. Olvasd be újra a COP-on látható QR-kódot, vagy lépj vissza a belépő oldalra.</p><input name="t" placeholder="csoportkód"><button class="btn pri">Belépés</button><a href="#/">← belépő oldal</a></form></main>`;
-        $('#tk').onsubmit = e => { e.preventDefault(); location.hash = '#/g/' + e.target.t.value.trim(); };
-        return;
-      }
-      localStorage.setItem('tdw-group-token', token);
-      const gid = g0.id, me = () => LWP.group(gid);
+      const gid = LWP.gid, me = () => LWP.group(gid);
       const G = { tab: 'cop', other: null };
-      if (!sessionStorage.getItem('tdw-gl:' + gid)) { sessionStorage.setItem('tdw-gl:' + gid, '1'); LWP.login(gid).catch(() => { }); }
       // aktivitásmérés: csak valódi használat (érintés, kattintás, gépelés) számít, látható lapon
       let lastIn = Date.now();
       ['mousemove', 'keydown', 'touchstart', 'click', 'scroll'].forEach(ev => document.addEventListener(ev, () => { lastIn = Date.now(); }, { passive: true }));
@@ -492,14 +502,16 @@
   }
 
   /* ---------- útválasztó ---------- */
-  function route() {
-    if (S.error) { app.innerHTML = `<main class="home">${brand}<div class="card glass"><h3>Kapcsolódási hiba</h3><p class="err">${esc(S.error)}</p><p class="muted">Ellenőrizd a hálózatot, majd töltsd újra az oldalt. Kipróbálhatod a helyi demót is: <a href="?local=1">?local=1</a></p></div></main>`; return; }
+  let routing = 0;
+  async function route() {
+    const my = ++routing;
+    if (S.error && !LWP.role) { app.innerHTML = `<main class="home">${brand}<div class="card glass"><h3>Kapcsolódási hiba</h3><p class="err">${esc(S.error)}</p><p class="muted">Ellenőrizd a hálózatot, majd töltsd újra az oldalt. Kipróbálhatod a helyi demót is: <a href="?local=1">?local=1</a></p></div></main>`; return; }
     const p = location.hash.replace(/^#\/?/, '').split('/');
-    if (p[0] === 'cop') return p[1] === 'dashboard' ? viewDash() : viewCOP();
-    if (p[0] === 'lead') return viewLead();
-    if (p[0] === 'g') return viewGroup(p[1]);
+    if (p[0] === 'cop') { const ok = await LWP.activate('copview'); if (my !== routing) return; if (!ok) { mount(() => copLogin()); return; } return p[1] === 'dashboard' ? viewDash() : viewCOP(); }
+    if (p[0] === 'lead') { const ok = await LWP.activate('lead'); if (my !== routing) return; if (!ok) { mount(() => leadLogin()); return; } return viewLead(); }
+    if (p[0] === 'g') return viewGroup(p[1], my);
     return viewHome();
   }
   window.addEventListener('hashchange', route);
-  LWP.init().then(() => { document.getElementById('boot').remove(); route(); });
+  LWP.init().then(() => { document.getElementById('boot').remove(); LWP.onAuthLost(() => route()); route(); });
 })();

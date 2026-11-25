@@ -1,4 +1,16 @@
 # Változásnapló
+## v0.3.0 – 2026-11-25 – Biztonsági átalakítás
+- Zárt adatbázis: a `tdw_*` táblák RLS-szabályai törölve, anon/authenticated jog megvonva; minden hozzáférés szerepkör-alapú (vezető / COP / egység) RPC-n át, szerveroldali szűréssel.
+- Munkamenet-tokenek (csak SHA-256 tárolva, 24 órás csúszó lejárat), bcrypt kódok, belépési korlátozás.
+- A JEMM-terv és más egységek csatornái nem jutnak le az ügyfelekhez; az egységkód csak a vezetőnek látható.
+- Média feltöltés a `tdw-media` Edge Function-ön át (10 MB, típuslista, jogosultság-ellenőrzés).
+- XSS: emoji és csatornanév escape-elve + szerveroldali validáció; média-URL szűrés.
+- JEMM n8n webhook: egyszer használatos, szerver által kiadott jegy kell (új, védett workflow).
+- Nyugták/audit lapozás-mentes (jsonb RPC), delta-szinkron (3 s lekérdezés), törlés/rögzítés/reakció/konfig is szinkronizál.
+- Célzott inject esetén a „COP-on is" alapértelmezetten ki; megerősítés, ha mégis COP-ra kerül.
+- Figyelmeztetés: a JEMM modell nem fér hozzá az internethez, a helyszíneket ellenőrizni kell.
+- Új: COP-belépési kód, nyílt egységbelépés kapcsoló, kódok újragenerálása a Beállításokban.
+
 ## v0.2.5 – 2026-11-24
 - Javítva: a teljes képernyős JCHAT háttere világos, a szöveg jól olvasható.
 - Javítva: teljes képernyős Közös operatív képen az incidens-popup, a kép-nagyítás, a modálok és az értesítések a panel fölött nyílnak (teljes funkcionalitás).

@@ -15,6 +15,7 @@
 
   /* HTML-tisztító: csak egyszerű formázás maradhat (a vezetői közlések szövege formázott) */
   const OK = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'BR', 'P', 'H3', 'H4', 'DIV', 'SPAN']);
+  const safeUrl = u => /^(https?:\/\/|data:(image|audio|video)\/)/i.test(u || '') ? u : '';
   function sanitize(html) {
     const doc = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
     (function walk(n) {
@@ -118,7 +119,7 @@
     const m = Notif.queue.shift(), rest = Notif.queue.length, a = author(m), mt = mediaType(m);
     const alarm = !!m.pinned && m.author_type === 'lead';
     const body = m.body ? `<div class="ap-b">${m.author_type === 'group' ? plainHTML(m.body) : sanitize(m.body)}</div>` : '';
-    const media = mt === 'image' ? `<img class="ap-m" src="${esc(m.media_url)}" alt="">` : mt === 'video' ? `<video class="ap-m" src="${esc(m.media_url)}" muted autoplay loop playsinline></video>` : mt === 'audio' ? '<div class="ap-b">🎵 Hangüzenet</div>' : mt === 'file' ? `<div class="ap-b">📎 ${esc(m.media_name || 'fájl')}</div>` : '';
+    const media = mt === 'image' ? `<img class="ap-m" src="${esc(safeUrl(m.media_url))}" alt="">` : mt === 'video' ? `<video class="ap-m" src="${esc(safeUrl(m.media_url))}" muted autoplay loop playsinline></video>` : mt === 'audio' ? '<div class="ap-b">🎵 Hangüzenet</div>' : mt === 'file' ? `<div class="ap-b">📎 ${esc(m.media_name || 'fájl')}</div>` : '';
     const el = h(`<div class="ap-card" style="--c:${a.color}"><div class="ap-h"><span class="ava">${esc(a.short)}</span><div><b>${esc(a.name)}</b><small>${esc(whereLabel(m))} · ${fmtHM(m.created_at)}</small></div>${alarm ? '<span class="badge ev">KIEMELT KÖZLÉS</span>' : m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : '<span class="badge">ÚJ KÖZLÉS</span>'}</div>${body}${media}${rest ? `<div class="ap-more">+${rest} további új közlés vár</div>` : ''}</div>`);
     const wrap = document.createElement('div'); wrap.className = 'alertpop' + (alarm ? ' alarm' : ''); wrap.appendChild(el);
     document.body.appendChild(wrap);
@@ -156,7 +157,7 @@
       (list || []).forEach(r => { (by[r.emoji] = by[r.emoji] || []).push(r.actor); });
       const chips = Object.keys(by).map(e => {
         const mine = o.actor && by[e].includes(o.actor);
-        return `<button class="rxchip${mine ? ' mine' : ''}" data-rx="${e}" title="${esc(by[e].map(actorName).join(', '))}" ${o.actor ? '' : 'disabled'}>${e} <b>${by[e].length}</b></button>`;
+        return `<button class="rxchip${mine ? ' mine' : ''}" data-rx="${esc(e)}" title="${esc(by[e].map(actorName).join(', '))}" ${o.actor ? '' : 'disabled'}>${esc(e)} <b>${by[e].length}</b></button>`;
       }).join('');
       const add = o.actor ? `<span class="rxadd"><button class="rxplus" data-rxopen title="Reagálok">☺＋</button><span class="picker">${EMOJI.map(e => `<button data-rx="${e}">${e}</button>`).join('')}</span></span>` : '';
       return chips + add;
@@ -186,10 +187,10 @@
       const body = m.body ? (m.author_type === 'group' ? plainHTML(m.body) : sanitize(m.body)) : '';
       const mt = mediaType(m);
       let media = '';
-      if (mt === 'image') media = `<img class="pm" loading="lazy" src="${esc(m.media_url)}" alt="${esc(m.media_name || 'kép')}" data-zoom>`;
-      else if (mt === 'video') media = `<video class="pm" controls preload="metadata" src="${esc(m.media_url)}"></video>`;
-      else if (mt === 'audio') media = `<audio class="pa" controls preload="metadata" src="${esc(m.media_url)}"></audio>`;
-      else if (mt === 'file') media = `<a class="pf" href="${esc(m.media_url)}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'fájl')}</a>`;
+      if (mt === 'image') media = `<img class="pm" loading="lazy" src="${esc(safeUrl(m.media_url))}" alt="${esc(m.media_name || 'kép')}" data-zoom>`;
+      else if (mt === 'video') media = `<video class="pm" controls preload="metadata" src="${esc(safeUrl(m.media_url))}"></video>`;
+      else if (mt === 'audio') media = `<audio class="pa" controls preload="metadata" src="${esc(safeUrl(m.media_url))}"></audio>`;
+      else if (mt === 'file') media = `<a class="pf" href="${esc(safeUrl(m.media_url))}" target="_blank" rel="noopener">📎 ${esc(m.media_name || 'fájl')}</a>`;
       el.innerHTML = `<header><span class="ava">${esc(a.short)}</span><div class="who"><b>${esc(a.name)}</b>${a.badge ? `<span class="badge">${esc(a.badge)}</span>` : ''}${m.kind === 'event' ? '<span class="badge ev">ESEMÉNY</span>' : ''}<span class="incslot"></span><time>${fmtTime(m.created_at)}</time></div>${(o.canMod || (o.canDel && o.canDel(m))) ? `<span class="mod">${o.canMod ? '<button data-pin title="Kiemelés a COP-on">📌 Kiemel</button>' : ''}<button data-del title="Közlés törlése">🗑 Törlés</button></span>` : ''}<button class="rpl" data-rpl title="Válasz erre a közlésre" aria-label="Válasz">↩</button></header>${quoteHTML(m)}${o.collapse && body ? `<div class="pb short">${esc(shortOf(body))}<span class="more">… tovább</span></div>` : ''}${body ? `<div class="pb full">${body}</div>` : ''}${media ? `<div class="pmedia">${media}</div>` : ''}<footer class="rx"></footer>`;
       if (o.collapse) { el.classList.add('col'); el.addEventListener('click', e => { if (e.target.closest('button,a,video,audio,img,input,.rx,.mod,.rq')) return; el.classList.toggle('open'); }); }
       el._sig = null;
@@ -383,5 +384,5 @@
   const csvCell = v => { v = v == null ? '' : String(v); return /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   const toCSV = rows => '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
 
-  window.UI = { setReply(m) { const all = Array.from(window.UI._composers || []).filter(c => c.root.isConnected); if (!all.length) return; all.forEach(c => c.setReply(m)); const r = all[all.length - 1].root.querySelector('.cx-in'); r && r.focus(); }, onIncidentFocus, focusIncident, Notif, notifStart, notifStop, soundBtn, siren, EMOJI, esc, h, $, $$, fmtTime, fmtHM, fmtDur, sanitize, plainHTML, mediaType, kindOfFile, author, actorName, Feed, Composer, toast, lightbox, modal, qrSvg, groupUrl, download, toCSV };
+  window.UI = { safeUrl, setReply(m) { const all = Array.from(window.UI._composers || []).filter(c => c.root.isConnected); if (!all.length) return; all.forEach(c => c.setReply(m)); const r = all[all.length - 1].root.querySelector('.cx-in'); r && r.focus(); }, onIncidentFocus, focusIncident, Notif, notifStart, notifStop, soundBtn, siren, EMOJI, esc, h, $, $$, fmtTime, fmtHM, fmtDur, sanitize, plainHTML, mediaType, kindOfFile, author, actorName, Feed, Composer, toast, lightbox, modal, qrSvg, groupUrl, download, toCSV };
 })();

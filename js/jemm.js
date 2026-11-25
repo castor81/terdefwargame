@@ -227,10 +227,10 @@
       J.busy = true; J.err = null; drawPlan();
       try {
         const ac = new AbortController(), to_ = setTimeout(() => ac.abort(), 900000);
-        const r = await fetch(CFG.jemmWebhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatInput: msg, sessionId: 'tdw-' + Date.now() }), signal: ac.signal });
+        const r = await fetch(CFG.jemmWebhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatInput: '[[TDW:' + (await LWP.jemmTicket()) + ']]\n' + msg, sessionId: 'tdw-' + Date.now() }), signal: ac.signal });
         clearTimeout(to_); if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
         let result; const ct = r.headers.get('content-type') || '';
-        if (ct.includes('application/json')) { const d = await r.json(); result = Array.isArray(d) ? (d[0] && (d[0].output || d[0].text || d[0].message || d[0].response)) || JSON.stringify(d) : (d.output || d.response || d.result || d.text || d.message || JSON.stringify(d)); } else result = await r.text();
+        if (ct.includes('application/json')) { const d = await r.json(); if (d && d.ok === false) throw new Error('A JEMM-jegy érvénytelen vagy lejárt – próbáld újra.'); result = Array.isArray(d) ? (d[0] && (d[0].output || d[0].text || d[0].message || d[0].response)) || JSON.stringify(d) : (d.output || d.response || d.result || d.text || d.message || JSON.stringify(d)); } else result = await r.text();
         const parsed = typeof result === 'object' ? result : extractJSON(result);
         const plan = parsed && normalizePlan(parsed, { name: S.cfg.name, to, ta: J.ta.slice(), cats: J.cats.slice(), generated: new Date().toISOString() });
         if (!plan) { J.raw = String(result); throw new Error('A JEMM kimenete nem értelmezhető Event/Storyline/Inject struktúraként. A nyers kimenet lent látható.'); }
@@ -265,7 +265,7 @@
       if (J.err) { host.innerHTML = `<div class="jm-err"><b>⚠ Hiba</b><p>${esc(J.err)}</p>${J.raw ? `<pre>${esc(J.raw.slice(0, 6000))}</pre>` : ''}</div>`; if (!p) return; }
       if (!p) { host.innerHTML = '<div class="empty">Még nincs terv. Töltsd ki a bal oldali mezőket, majd kattints a Generálásra.</div>'; $('#jmeta', root).textContent = ''; return; }
       const nInj = p.events.reduce((a, e) => a + e.storylines.reduce((b, s) => b + s.injects.length, 0), 0), nNo = p.events.reduce((a, e) => a + e.storylines.reduce((b, s) => b + s.injects.filter(i => i.lat == null).length, 0), 0);
-      $('#jmeta', root).textContent = `${p.events.length} event · ${nInj} inject${nNo ? ' · ⚠ ' + nNo + ' helyszín nélkül' : ''} · ${U.fmtTime(p.meta && p.meta.generated || Date.now())}`;
+      $('#jmeta', root).textContent = `${p.events.length} event · ${nInj} inject${nNo ? ' · ⚠ ' + nNo + ' helyszín nélkül' : ''} · ${U.fmtTime(p.meta && p.meta.generated || Date.now())} · ⚠ a modell nem fér hozzá az internethez: a helyszínek valósságát ellenőrizd`;
       const parts = [`<div class="jm-ex"><h3>${esc(p.exercise.name || '')}</h3><p class="muted">${esc(p.exercise.to || '')}</p></div>`];
       p.events.forEach(e => {
         const ek = e.id; parts.push(`<details class="jev-d" data-k="${ek}"${J.open.has(ek) ? ' open' : ''}><summary><span class="no">${esc(e.code)}</span><b>${esc(e.title)}</b></summary>${e.desc ? `<div class="sx jdesc">${toHtml(e.desc)}</div>` : ''}`);
@@ -283,7 +283,7 @@
     planHost.addEventListener('change', e => {
       const card = e.target.closest('.jinj'); if (!card) return; const f = e.target.dataset.f; const r = findInj(card.dataset.i); if (!r) return;
       if (f === 'severity' || f === 'unit') { r.i[f] = e.target.value; savePlan(); sig = ''; if (f === 'severity') { const code = card.querySelector('.ip-code'); code.style.background = window.TDWMap.sev(r.i.severity).c; } }
-      if (f === 'tmode') { const ts = card.querySelector('.tsel'); ts.hidden = e.target.value !== 'sel'; if (!ts.hidden && !ts._ms) { ts._ms = MultiSel(ts, { placeholder: '— Szervezeti elemek —', selected: [], options: () => ORG.list.map(o => ({ v: o.id, l: (o.level === 'zaszlo' ? '   ' : '') + o.name })), labelOf: v => (ORG.get(v) || { short: v }).short }); } }
+      if (f === 'tmode') { const cb = card.querySelector('[data-f="cop"]'); if (cb) cb.checked = e.target.value === 'all'; const ts = card.querySelector('.tsel'); ts.hidden = e.target.value !== 'sel'; if (!ts.hidden && !ts._ms) { ts._ms = MultiSel(ts, { placeholder: '— Szervezeti elemek —', selected: [], options: () => ORG.list.map(o => ({ v: o.id, l: (o.level === 'zaszlo' ? '   ' : '') + o.name })), labelOf: v => (ORG.get(v) || { short: v }).short }); } }
     });
     planHost.addEventListener('click', async e => {
       const btn = e.target.closest('[data-act]'); if (!btn) return; const card = btn.closest('.jinj'); const r = findInj(card.dataset.i); if (!r) return; const inj = r.i;
@@ -297,6 +297,7 @@
         { const T = targets === 'all' ? null : territory(targets); if (T && !inTerr(T, inj.county)) { U.toast('Területi hatály: a helyszín (' + (inj.place || '–') + ', ' + (inj.county || 'ismeretlen vármegye') + ') kívül esik a címzettek illetékességi területén. Módosítsd a helyszínt vagy a címzetteket.'); return; } }
         const label = targets === 'all' ? 'MINDENKI' : targets.map(t => (ORG.get(t) || { short: t }).short).join(', ');
         if (!confirm(`Bejátszod: ${inj.code} – ${inj.title}\nCímzett: ${label}`)) return;
+        if (targets !== 'all' && q('cop').checked && !confirm('FIGYELEM: ez célzott inject, de a COP-on is megjelenik, így minden szervezeti elem látni fogja. Folytatod?')) return;
         btn.disabled = true;
         try {
           const body = toHtml(inj.desc) + (q('exp').checked && inj.expected ? '<p><b>Elvárt tevékenység:</b></p>' + toHtml(inj.expected) : '');
@@ -319,12 +320,13 @@
       <div class="row"><button class="btn" id="mpk">📍 Helyszín kijelölése</button><span id="mloc" class="muted">nincs kijelölve</span></div>
       <label class="chk"><input type="checkbox" id="mcop" checked> megjelenítés a COP-on is</label><label class="chk alm"><input type="checkbox" id="mal"> 🚨 kiemelt (sziréna)</label><button class="btn pri" id="mgo">▶ Bejátszás</button></div>`);
     let loc = null, ms = null;
-    m.querySelector('#mto').onchange = e => { const el = m.querySelector('#mtsel'); el.hidden = e.target.value !== 'sel'; if (!el.hidden && !ms) ms = MultiSel(el, { placeholder: '— Szervezeti elemek —', selected: [], options: () => ORG.list.map(o => ({ v: o.id, l: (o.level === 'zaszlo' ? '   ' : '') + o.name })), labelOf: v => (ORG.get(v) || { short: v }).short }); };
+    m.querySelector('#mto').onchange = e => { m.querySelector('#mcop').checked = e.target.value === 'all'; const el = m.querySelector('#mtsel'); el.hidden = e.target.value !== 'sel'; if (!el.hidden && !ms) ms = MultiSel(el, { placeholder: '— Szervezeti elemek —', selected: [], options: () => ORG.list.map(o => ({ v: o.id, l: (o.level === 'zaszlo' ? '   ' : '') + o.name })), labelOf: v => (ORG.get(v) || { short: v }).short }); };
     m.querySelector('#mpk').onclick = () => window.TDWMap.pick(loc, l => { loc = l; m.querySelector('#mloc').textContent = `${l.place || '–'} · ${l.county || ''} · ${l.lat.toFixed(3)}, ${l.lon.toFixed(3)}`; });
     m.querySelector('#mgo').onclick = async e => {
       const title = m.querySelector('#mt').value.trim(); if (!title) return U.toast('Adj meg címet.'); if (!loc) return U.toast('Jelöld ki a helyszínt.');
       let targets = 'all'; if (m.querySelector('#mto').value === 'sel') { targets = expandTargets(ms ? ms.get() : [], true); if (!targets.length) return U.toast('Válassz szervezeti elemet.'); }
       e.target.disabled = true;
+      if (targets !== 'all' && m.querySelector('#mcop').checked && !confirm('FIGYELEM: ez célzott incidens, de a COP-on is megjelenik, így minden szervezeti elem látni fogja. Folytatod?')) return;
       try { const inc = await playIncident({ title, bodyHtml: toHtml(m.querySelector('#mb').value.trim()), lat: loc.lat, lon: loc.lon, county: loc.county, place: loc.place, unit: loc.county ? ORG.unitsOfCounty(loc.county).zaszlo : '', severity: m.querySelector('#ms').value, targets, showCop: m.querySelector('#mcop').checked, alarm: m.querySelector('#mal').checked, ref: { manual: true } }); m.remove(); U.toast('Bejátszva: ' + LWP.incCode(inc)); done && done(inc); } catch (err) { U.toast(err.message); e.target.disabled = false; }
     };
   }
